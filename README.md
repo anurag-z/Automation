@@ -1,6 +1,3 @@
 # Automation
-Anurag Bansod Automation Protfolio
-
-A simple Git static page used to Present my Automation Journey and show case my sample work.
-
-Mentioned which technology I have worked and Hands On, tried to Implement same in my personal Projects.
+Anurag Bansod - Automation Portfolio
+Welcome to my automation portfolio! This repository serves as a showcase of my journey in the field of automation, featuring some of the technologies I have worked with and the personal projects I have implemented. Here, you can find examples of my hands-on work, my experience with different tools and frameworks, and insights into how I've applied these technologies to real-world scenarios.
