@@ -5284,3 +5284,31 @@ a.credit {
 /* Common Style */
 .section {
   padding-bottom: 0; }
+
+  .tech-stack {
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .tech-stack h3 {
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 15px;
+  }
+  
+  .tech-stack ul {
+    list-style-type: none;
+    padding-left: 0;
+  }
+  
+  .tech-stack li {
+    font-size: 16px;
+    margin: 8px 0;
+  }
+  
+  .tech-stack li strong {
+    color: #007bff;
+  }
+  
