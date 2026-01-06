@@ -44,3 +44,15 @@ protected ILog log = LogManager.GetLogger(typeof(BaseTest));
 
         log.Info($"--- START OF TEST: {testName} ---");
     }
+
+
+
+public void EndTestLogging()
+    {
+        log.Info($"--- END OF TEST: {TestContext.CurrentContext.Test.Name} ---");
+
+        // Remove the individual appender so the next test doesn't write to this file
+        var hierarchy = (Hierarchy)LogManager.GetRepository();
+        hierarchy.Root.RemoveAppender(_individualTestAppender);
+        _individualTestAppender.Close();
+    }
