@@ -56,3 +56,13 @@ public void EndTestLogging()
         hierarchy.Root.RemoveAppender(_individualTestAppender);
         _individualTestAppender.Close();
     }
+
+string binPath = AppDomain.CurrentDomain.BaseDirectory;
+    string configPath = Path.Combine(binPath, "log4net.config");
+
+    FileInfo configFile = new FileInfo(configPath);
+    
+    if (configFile.Exists)
+    {
+        XmlConfigurator.Configure(LogManager.GetRepository(Assembly.GetExecutingAssembly()), configFile);
+    }
