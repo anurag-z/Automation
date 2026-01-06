@@ -12,3 +12,6 @@
     <appender-ref ref="MasterFileAppender" />
   </root>
 </log4net>
+
+
+log4net.Config.XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
