@@ -15,3 +15,32 @@
 
 
 log4net.Config.XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
+
+
+protected ILog log = LogManager.GetLogger(typeof(BaseTest));
+    private FileAppender _individualTestAppender;
+
+    [SetUp]
+    public void StartTestLogging()
+    {
+        string testName = TestContext.CurrentContext.Test.Name;
+        // Path for the individual test log
+        string logPath = $"Logs\\IndividualTests\\{testName}.log";
+
+        // Create a new appender for THIS test only
+        _individualTestAppender = new FileAppender
+        {
+            Name = testName,
+            File = logPath,
+            AppendToFile = false, // Fresh file for each test
+            Layout = new log4net.Layout.PatternLayout("%date %-5level - %message%newline")
+        };
+        _individualTestAppender.ActivateOptions();
+
+        // Attach this appender to the log4net hierarchy
+        var hierarchy = (Hierarchy)LogManager.GetRepository();
+        hierarchy.Root.AddAppender(_individualTestAppender);
+        hierarchy.RaiseConfigurationChanged(System.EventArgs.Empty);
+
+        log.Info($"--- START OF TEST: {testName} ---");
+    }
