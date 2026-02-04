@@ -108,20 +108,19 @@ class Program
   // --- REPLACE YOUR EXISTING FILTER METHOD WITH THIS ---
 static Bitmap FilterBlueScreen(Bitmap original)
 {
-    // 1. Scale Up: Use 2x (Not 3x). 
-    // Since your DOS font is 24px, 2x makes it 48px tall, which is perfect.
+    // 1. Scale Up (2x) - Perfect for Font Size 24
     int scale = 2;
     Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
 
     using (Graphics g = Graphics.FromImage(newBmp))
     {
-        // CRITICAL: Keep NearestNeighbor to prevent blurry edges
+        // NearestNeighbor is MANDATORY for DOS text
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
         g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
     }
 
-    // 2. Brightness Filter ONLY (No extra bolding)
+    // 2. Brightness Filter (Tuned High)
     for (int y = 0; y < newBmp.Height; y++)
     {
         for (int x = 0; x < newBmp.Width; x++)
@@ -129,23 +128,22 @@ static Bitmap FilterBlueScreen(Bitmap original)
             Color c = newBmp.GetPixel(x, y);
 
             // Calculate Brightness
-            // This detects White, Cyan, Yellow, etc.
             int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
 
-            // If bright (> 40), make it Black (Text).
-            // If dark (< 40), make it White (Background).
-            if (brightness > 40) 
+            // --- THE FIX ---
+            // Old Value: 40 (Too sensitive, caught the background)
+            // New Value: 90 (Safer. Catches Text, ignores Blue background)
+            if (brightness > 90) 
             {
-                newBmp.SetPixel(x, y, Color.Black); 
+                newBmp.SetPixel(x, y, Color.Black); // Text
             }
             else
             {
-                newBmp.SetPixel(x, y, Color.White); 
+                newBmp.SetPixel(x, y, Color.White); // Background
             }
         }
     }
     
-    // Returns clean, separated text without "blobs"
     return newBmp;
 }
     static Bitmap CaptureWindow(IntPtr handle)
