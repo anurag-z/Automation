@@ -109,6 +109,7 @@ class Program
         }
         return bmp;
     }
+    //https://github.com/tesseract-ocr/tessdata/blob/main/eng.traineddata
 
     static void PressKey(byte scanCode)
     {
