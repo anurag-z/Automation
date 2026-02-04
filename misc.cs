@@ -106,66 +106,59 @@ class Program
    // --- FINAL FILTER: CHANNEL CHECK ---
    // --- FINAL ROBUST FILTER: THE "RED+GREEN" SUM ---
   // --- REPLACE YOUR EXISTING FILTER METHOD WITH THIS ---
-static Bitmap SmartFilter(Bitmap original)
+// REPLACE YOUR FILTER METHOD WITH THIS ONE
+static Bitmap FilterBlueScreen(Bitmap original)
+{
+    // 1. Scale Up (2x) 
+    // We use 2x because your Font Size is 24.
+    // This creates a nice large image (approx 1600px wide) for OCR.
+    int scale = 2;
+    int padding = 20; // Adds white border so text doesn't touch the edge
+    int w = original.Width * scale;
+    int h = original.Height * scale;
+
+    Bitmap newBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+
+    using (Graphics g = Graphics.FromImage(newBmp))
     {
-        // 1. Scale Up (2x for Font 24)
-        int scale = 2;
-        int padding = 20; // Add white border
-        int w = original.Width * scale;
-        int h = original.Height * scale;
+        g.Clear(Color.White); // Start with a clean white sheet
 
-        // Create bitmap with extra room (Padding)
-        Bitmap newBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+        // MANDATORY: NearestNeighbor keeps pixels square and sharp
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+        
+        // Draw the original image inside the padding
+        g.DrawImage(original, padding, padding, w, h);
+    }
 
-        using (Graphics g = Graphics.FromImage(newBmp))
+    // 2. The "Green or Red" Filter
+    for (int y = 0; y < newBmp.Height; y++)
+    {
+        for (int x = 0; x < newBmp.Width; x++)
         {
-            // Fill background with White
-            g.Clear(Color.White);
+            Color c = newBmp.GetPixel(x, y);
 
-            // Keep pixel sharpness
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            // LOGIC EXPLAINED:
+            // - Blue Background: (R:0, G:0, B:170) -> Has NO Red or Green.
+            // - Cyan Text:       (R:0, G:255, B:255) -> Has GREEN.
+            // - White Text:      (R:255, G:255, B:255) -> Has RED and GREEN.
             
-            // Draw image in the middle (creating a border)
-            g.DrawImage(original, padding, padding, w, h);
-        }
-
-        // 2. The "Not Blue" Filter
-        // Instead of Brightness, we remove anything that is "Mostly Blue".
-        for (int y = 0; y < newBmp.Height; y++)
-        {
-            for (int x = 0; x < newBmp.Width; x++)
+            // If the pixel has ANY significant Red OR Green, it must be text.
+            // We ignore Blue completely because everything has Blue in it.
+            
+            if (c.R > 60 || c.G > 60) 
             {
-                Color c = newBmp.GetPixel(x, y);
-
-                // LOGIC: Is this pixel "Blue Background"?
-                // Blue background has High Blue, Low Red, Low Green.
-                // Text (White/Cyan) has High Green and/or High Red.
-                
-                // If Blue is dominant (> Red+20 AND > Green+20), it's background.
-                // We turn background White. Everything else (Text) becomes Black.
-                
-                bool isBlueBackground = (c.B > c.R + 20) && (c.B > c.G + 20);
-
-                // Note: We use a threshold of 50 to ignore pure black pixels/shadows
-                if (isBlueBackground && c.B > 50) 
-                {
-                    newBmp.SetPixel(x, y, Color.White); // Erase Background
-                }
-                else if (c.R > 50 || c.G > 50 || c.B > 50)
-                {
-                    // If it has ANY significant color and isn't just Blue, it's Text.
-                    newBmp.SetPixel(x, y, Color.Black); // Keep Text
-                }
-                else
-                {
-                     // Very dark pixels (black screen border) -> White
-                     newBmp.SetPixel(x, y, Color.White);
-                }
+                newBmp.SetPixel(x, y, Color.Black); // Keep it (Ink)
+            }
+            else
+            {
+                newBmp.SetPixel(x, y, Color.White); // Remove it (Paper)
             }
         }
-        return newBmp;
     }
+    
+    return newBmp;
+}
     static Bitmap CaptureWindow(IntPtr handle)
     {
         RECT rect;
