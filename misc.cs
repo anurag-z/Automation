@@ -109,10 +109,10 @@ class Program
 // REPLACE YOUR FILTER METHOD WITH THIS ONE
 // --- REPLACE WITH THIS "DE-BLUR" METHOD ---
 // --- FINAL TUNED FILTER (GREEN > 80) ---
+// --- FINAL TUNED FILTER: THE "SWEET SPOT" (110) ---
 static Bitmap FilterBlueScreen(Bitmap original)
 {
-    // 1. Scale Up (2x)
-    // Font 24 is large, so 2x scale is perfect.
+    // 1. Scale Up (2x) - Optimized for your Font Size 24
     int scale = 2;
     int padding = 20;
     int w = original.Width * scale;
@@ -124,33 +124,33 @@ static Bitmap FilterBlueScreen(Bitmap original)
     {
         g.Clear(Color.White); 
         
-        // NEAREST NEIGHBOR: Keeps text blocky and readable
+        // CRITICAL: Keep NearestNeighbor to prevent new blur
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
         
         g.DrawImage(original, padding, padding, w, h);
     }
 
-    // 2. The "Safe Green" Filter
+    // 2. The Filter
     for (int y = 0; y < newBmp.Height; y++)
     {
         for (int x = 0; x < newBmp.Width; x++)
         {
             Color c = newBmp.GetPixel(x, y);
 
-            // LOGIC FIX:
-            // We reduced the threshold from 200 down to 80.
-            
-            // Blue Background: Green is approx 0. (0 is NOT > 80) -> Becomes White.
-            // Cyan/White Text: Green is approx 170-255. (170 IS > 80) -> Becomes Black.
-            
-            if (c.G > 80) 
+            // LOGIC (DRY RUN):
+            // Blue Background (G=0)   -> 0 > 110? NO.  -> White (Clean)
+            // Blurry Edges (G=~80)    -> 80 > 110? NO. -> White (Sharpens text!)
+            // Cyan Text (G=170)       -> 170 > 110? YES. -> Black (Visible!)
+            // White Text (G=255)      -> 255 > 110? YES. -> Black (Visible!)
+
+            if (c.G > 110) 
             {
-                newBmp.SetPixel(x, y, Color.Black); // Ink (Text)
+                newBmp.SetPixel(x, y, Color.Black); // Keep Text
             }
             else
             {
-                newBmp.SetPixel(x, y, Color.White); // Paper (Background)
+                newBmp.SetPixel(x, y, Color.White); // Remove Background & Blur
             }
         }
     }
