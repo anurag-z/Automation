@@ -48,5 +48,41 @@ class Program
         {
             Console.WriteLine("Error: " + ex.Message);
         }
+        try {
+    // 1. Send the keys to open the menu and copy text
+    // Alt+Space opens window menu, 'E' for Edit, 'S' for Select All
+    SendKeys.SendWait("%{SPACE}"); // Alt + Space
+    Thread.Sleep(500);
+    SendKeys.SendWait("es");       // Edit -> Select All
+    
+    Thread.Sleep(500);
+    SendKeys.SendWait("{ENTER}");  // Copy to clipboard
+    
+    // 2. Get the text from the Clipboard
+    string fullScreenText = Clipboard.GetText();
+
+    // 3. Split the text into separate lines
+    string[] lines = fullScreenText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+
+    // READ THE TOP LINE (Header)
+    if (lines.Length > 0)
+    {
+        string topLine = lines[0];
+        Console.WriteLine("TOP OF SCREEN: " + topLine);
+    }
+
+    // READ THE BOTTOM LINE (Status Bar)
+    // We check for empty lines at the end, sometimes copy adds whitespace
+    if (lines.Length > 1)
+    {
+        // Often the last line is empty, so we take the one before it
+        string bottomLine = lines[lines.Length - 2]; 
+        Console.WriteLine("BOTTOM OF SCREEN: " + bottomLine);
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine("Could not read screen: " + ex.Message);
+}
     }
 }
