@@ -93,55 +93,79 @@ class Program
     // --- THE FIX ---
     static Bitmap FilterGrayscaleBold(Bitmap original)
     {
-       // STEP 1: Clean the image at original size (1x)
-    // We simply separate Light Text from Dark Background.
-    Bitmap clean1x = new Bitmap(original.Width, original.Height);
-    
-    // Safety: Start with a White canvas
-    using (Graphics g = Graphics.FromImage(clean1x)) { g.Clear(Color.White); }
+      // STEP 1: Create the Base Layer (Threshold Only)
+        // We do this at 1x size to keep the "dots" separate first.
+        Bitmap baseLayer = new Bitmap(original.Width, original.Height);
+        using (Graphics g = Graphics.FromImage(baseLayer)) { g.Clear(Color.White); }
 
-    for (int y = 0; y < original.Height; y++) 
-    {
-        for (int x = 0; x < original.Width; x++)
+        // Threshold Logic
+        for (int y = 0; y < original.Height; y++) 
         {
-            Color c = original.GetPixel(x, y);
-
-            // Calculate Brightness (0 to 255)
-            // This works for Cyan, White, Yellow - any bright text color.
-            int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
-
-            // Threshold: 60
-            // Background is usually ~20. Text is usually > 150.
-            // 60 is the perfect cutoff to remove the background noise.
-            if (brightness > 60) 
+            for (int x = 0; x < original.Width; x++)
             {
-                clean1x.SetPixel(x, y, Color.Black); // Ink
+                Color c = original.GetPixel(x, y);
+                // Brightness Calculation
+                int b = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
+
+                // Threshold 50 captures all text dots
+                if (b > 50) 
+                {
+                    baseLayer.SetPixel(x, y, Color.Black);
+                }
             }
-            // We don't need "else { SetWhite }" because we cleared the canvas to White at the start.
         }
-    }
 
-    // STEP 2: Scale Up (2x)
-    // We scale up to make it easier for Tesseract to read the clean letters.
-    int scale = 2;
-    int padding = 20; // Add border
-    int w = original.Width * scale;
-    int h = original.Height * scale;
+        // STEP 2: "Connect the Dots" (Smart Gap Fill)
+        // We create a new bitmap for the connected version
+        Bitmap connected = new Bitmap(original.Width, original.Height);
+        using (Graphics g = Graphics.FromImage(connected)) { g.Clear(Color.White); }
 
-    Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+        for (int y = 1; y < original.Height - 1; y++) 
+        {
+            for (int x = 1; x < original.Width - 1; x++)
+            {
+                // If the pixel is ALREADY black, keep it.
+                if (baseLayer.GetPixel(x, y).R == 0)
+                {
+                    connected.SetPixel(x, y, Color.Black);
+                }
+                else 
+                {
+                    // If it is WHITE, check neighbors.
+                    // If it is touching 2 or more Black pixels, fill it!
+                    int neighbors = 0;
+                    if (baseLayer.GetPixel(x - 1, y).R == 0) neighbors++; // Left
+                    if (baseLayer.GetPixel(x + 1, y).R == 0) neighbors++; // Right
+                    if (baseLayer.GetPixel(x, y - 1).R == 0) neighbors++; // Top
+                    if (baseLayer.GetPixel(x, y + 1).R == 0) neighbors++; // Bottom
 
-    using (Graphics g = Graphics.FromImage(finalBmp))
-    {
-        g.Clear(Color.White); // White background
+                    if (neighbors >= 2)
+                    {
+                        connected.SetPixel(x, y, Color.Black);
+                    }
+                }
+            }
+        }
 
-        // CRITICAL: NearestNeighbor
-        // Since we are using a computer font (Consolas), we want exact pixels.
-        // We do NOT want the "smoothing" that makes text blurry.
-        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-        
-        g.DrawImage(clean1x, padding, padding, w, h);
-    }
+        // STEP 3: Scale Up 3x (Crisp Output)
+        int scale = 3; 
+        int padding = 20;
+        int w = original.Width * scale;
+        int h = original.Height * scale;
+
+        Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+
+        using (Graphics g = Graphics.FromImage(finalBmp))
+        {
+            g.Clear(Color.White);
+
+            // NEAREST NEIGHBOR ensures we don't add gray blur.
+            // We want the sharp pixels we just created.
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            
+            g.DrawImage(connected, padding, padding, w, h);
+        }
         return finalBmp;
     }
 
