@@ -105,12 +105,11 @@ class Program
 
     // --- FINAL FILTER METHOD (Green > 70) ---
     // --- FINAL LOGIC: FILTER FIRST, SCALE LATER ---
+// --- FINAL FIX: FILTER FIRST (Threshold 40) -> THEN SCALE 3X ---
 static Bitmap FilterBlueScreen(Bitmap original)
 {
     // STEP 1: Filter at ORIGINAL Size (1x)
-    // We clean the image while it is still small. 
-    // This prevents "blur" pixels from growing into "blobs".
-    
+    // We clean the pixels BEFORE scaling to prevent "blobs".
     Bitmap clean1x = new Bitmap(original.Width, original.Height);
     
     for (int y = 0; y < original.Height; y++)
@@ -120,26 +119,28 @@ static Bitmap FilterBlueScreen(Bitmap original)
             Color c = original.GetPixel(x, y);
 
             // LOGIC:
-            // Background (Blue) has Green = 0.
-            // Text (Cyan/White) has Green > 150.
-            // Edge Blur has Green ~ 50-100.
+            // Blue Background has Green = 0.
+            // Cyan/White Text has Green > 150.
+            // Faint/Thin edges have Green ~ 40-80.
             
-            // We use threshold 100. 
-            // This deletes the Background AND the Blur, leaving only the sharp text core.
-            if (c.G > 100) 
+            // We use Threshold 40. 
+            // This captures the entire thickness of the "0" so it doesn't break.
+            // It is still safe because the Background is 0.
+            if (c.G > 40) 
             {
-                clean1x.SetPixel(x, y, Color.Black); // Text (Ink)
+                clean1x.SetPixel(x, y, Color.Black); // Text
             }
             else
             {
-                clean1x.SetPixel(x, y, Color.White); // Background (Paper)
+                clean1x.SetPixel(x, y, Color.White); // Background
             }
         }
     }
 
-    // STEP 2: Scale Up (2x)
-    // Now we resize the CLEAN image. 
-    int scale = 2;
+    // STEP 2: Scale Up (3x)
+    // Now that the image is clean (Black/White), we can make it HUGE.
+    // 3x size makes "1040" very easy for Tesseract to read.
+    int scale = 3; 
     int padding = 20;
     int w = original.Width * scale;
     int h = original.Height * scale;
@@ -150,12 +151,12 @@ static Bitmap FilterBlueScreen(Bitmap original)
     {
         g.Clear(Color.White);
 
-        // Nearest Neighbor is CRITICAL.
-        // It keeps the pixels square and sharp.
+        // Nearest Neighbor is CRITICAL. 
+        // It turns the single pixels into perfect 3x3 black squares.
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
         
-        // Draw the already-cleaned image
+        // Draw the clean image
         g.DrawImage(clean1x, padding, padding, w, h);
     }
     
