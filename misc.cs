@@ -105,49 +105,49 @@ class Program
    // --- IMPROVED FILTER: COLOR DISTANCE ---
    // --- FINAL FILTER: CHANNEL CHECK ---
    // --- FINAL ROBUST FILTER: THE "RED+GREEN" SUM ---
-    static Bitmap FilterBlueScreen(Bitmap original)
+  // --- REPLACE YOUR EXISTING FILTER METHOD WITH THIS ---
+static Bitmap FilterBlueScreen(Bitmap original)
+{
+    // 1. Scale Up: Use 2x (Not 3x). 
+    // Since your DOS font is 24px, 2x makes it 48px tall, which is perfect.
+    int scale = 2;
+    Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
+
+    using (Graphics g = Graphics.FromImage(newBmp))
     {
-        // 1. Scale Up (3x) for Tesseract
-        int scale = 3;
-        Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
+        // CRITICAL: Keep NearestNeighbor to prevent blurry edges
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+        g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
+    }
 
-        using (Graphics g = Graphics.FromImage(newBmp))
+    // 2. Brightness Filter ONLY (No extra bolding)
+    for (int y = 0; y < newBmp.Height; y++)
+    {
+        for (int x = 0; x < newBmp.Width; x++)
         {
-            // KEEP IT SHARP! (Nearest Neighbor is mandatory for DOS)
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
-        }
+            Color c = newBmp.GetPixel(x, y);
 
-        // 2. The Filter Loop
-        for (int y = 0; y < newBmp.Height; y++)
-        {
-            for (int x = 0; x < newBmp.Width; x++)
+            // Calculate Brightness
+            // This detects White, Cyan, Yellow, etc.
+            int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
+
+            // If bright (> 40), make it Black (Text).
+            // If dark (< 40), make it White (Background).
+            if (brightness > 40) 
             {
-                Color c = newBmp.GetPixel(x, y);
-
-                // LOGIC:
-                // We sum the Red and Green values.
-                // Background (Blue) = 0 Red + 0 Green = 0 Total.
-                // Cyan Text = 0 Red + 255 Green = 255 Total.
-                // White Text = 255 Red + 255 Green = 510 Total.
-                
-                // We set the cutoff at 100. 
-                // This ignores faint background noise but catches all text.
-                int brightnessSum = c.R + c.G;
-
-                if (brightnessSum > 100) 
-                {
-                    newBmp.SetPixel(x, y, Color.Black); // Ink
-                }
-                else
-                {
-                    newBmp.SetPixel(x, y, Color.White); // Paper
-                }
+                newBmp.SetPixel(x, y, Color.Black); 
+            }
+            else
+            {
+                newBmp.SetPixel(x, y, Color.White); 
             }
         }
-        return newBmp;
     }
+    
+    // Returns clean, separated text without "blobs"
+    return newBmp;
+}
     static Bitmap CaptureWindow(IntPtr handle)
     {
         RECT rect;
