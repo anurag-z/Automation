@@ -103,50 +103,43 @@ class Program
 
     // --- HELPER: Blue Screen Filter ---
    // --- IMPROVED FILTER: COLOR DISTANCE ---
+   // --- FINAL FILTER: CHANNEL CHECK ---
     static Bitmap FilterBlueScreen(Bitmap original)
     {
-        // 1. Scale Up (3x) - Essential for tiny "F7" text
+        // 1. Scale Up (3x) for better OCR
         int scale = 3;
         Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
 
         using (Graphics g = Graphics.FromImage(newBmp))
         {
-            // Keep pixels sharp (Nearest Neighbor)
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
         }
 
-        // 2. Identify the Background Color
-        // We assume the top-left pixel (0,0) is the background color (DOS Blue)
-        Color bgColor = newBmp.GetPixel(0, 0);
-
-        // 3. Filter Loop
+        // 2. The "Not Blue" Filter
         for (int y = 0; y < newBmp.Height; y++)
         {
             for (int x = 0; x < newBmp.Width; x++)
             {
                 Color c = newBmp.GetPixel(x, y);
 
-                // Calculate the "Distance" between the current pixel and the Background
-                // If the color is very different, distance will be high.
-                int rDiff = c.R - bgColor.R;
-                int gDiff = c.G - bgColor.G;
-                int bDiff = c.B - bgColor.B;
+                // LOGIC: 
+                // The Background is Blue (R=low, G=low, B=high).
+                // The Text is White (R=high, G=high, B=high) or Cyan (R=low, G=high, B=high).
                 
-                // Euclidean Distance Formula (Approximate)
-                int distance = (int)Math.Sqrt((rDiff * rDiff) + (gDiff * gDiff) + (bDiff * bDiff));
-
-                // THRESHOLD: 
-                // If distance > 100, it is definitely NOT blue -> It is Text (Make it Black)
-                // Otherwise -> It is Background (Make it White)
-                if (distance > 100) 
+                // So, if Red > 60 OR Green > 60, it MUST be text.
+                // (Because the background has almost zero Red or Green).
+                
+                if (c.R > 60 || c.G > 60) 
                 {
-                    newBmp.SetPixel(x, y, Color.Black); // Ink
+                    // It has color -> Text -> BLACK
+                    newBmp.SetPixel(x, y, Color.Black);
                 }
                 else
                 {
-                    newBmp.SetPixel(x, y, Color.White); // Paper
+                    // It is dark/blue -> Background -> WHITE
+                    newBmp.SetPixel(x, y, Color.White); 
                 }
             }
         }
