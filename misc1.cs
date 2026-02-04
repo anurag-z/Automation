@@ -107,61 +107,59 @@ class Program
     // --- FINAL LOGIC: FILTER FIRST, SCALE LATER ---
 // --- FINAL FIX: FILTER FIRST (Threshold 40) -> THEN SCALE 3X ---
 // --- FINAL ROBUST METHOD (Fixes Black Screen & Thin Text) ---
+// --- FINAL APPROVED METHOD ---
 static Bitmap FilterBlueScreen(Bitmap original)
 {
-    // 1. Scale Up (3x)
-    // We scale FIRST to make the text big (easy for Tesseract).
-    // Scaling after filtering can sometimes cause "blobs".
-    int scale = 3;
+    // STEP 1: Filter & Bold at 1x Size
+    Bitmap bold1x = new Bitmap(original.Width, original.Height);
+    
+    // Fill with White first
+    using (Graphics g = Graphics.FromImage(bold1x)) { g.Clear(Color.White); }
+
+    for (int y = 0; y < original.Height - 1; y++) 
+    {
+        for (int x = 0; x < original.Width - 1; x++)
+        {
+            Color c = original.GetPixel(x, y);
+
+            // LOGIC: Green > 50
+            // This captures Cyan (170) and White (255)
+            // But ignores Blue Background (0)
+            if (c.G > 50) 
+            {
+                // Draw Original Pixel Black
+                bold1x.SetPixel(x, y, Color.Black);
+                
+                // DILATION (Bolding):
+                // Make the text 1 pixel thicker to the Right and Bottom.
+                // This fills the gaps in '0' and 'E'.
+                bold1x.SetPixel(x + 1, y, Color.Black);
+                bold1x.SetPixel(x, y + 1, Color.Black);
+            }
+        }
+    }
+
+    // STEP 2: Scale Up (2x)
+    // 2x is perfect. 3x is too big for bold text.
+    int scale = 2; 
     int padding = 20;
     int w = original.Width * scale;
     int h = original.Height * scale;
 
-    Bitmap newBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+    Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
 
-    using (Graphics g = Graphics.FromImage(newBmp))
+    using (Graphics g = Graphics.FromImage(finalBmp))
     {
-        // FIX 1: Prevent "Black Screen"
-        // We explicitly paint the whole image White first.
-        // If we don't do this, the background is Transparent (which looks Black).
-        g.Clear(Color.White);
+        g.Clear(Color.White); 
 
-        // Nearest Neighbor is CRITICAL.
-        // It keeps the pixels square and sharp.
+        // Nearest Neighbor keeps the sharp edges we just created
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
         
-        g.DrawImage(original, padding, padding, w, h);
-    }
-
-    // 2. The Green Filter (Threshold 60)
-    for (int y = 0; y < newBmp.Height; y++)
-    {
-        for (int x = 0; x < newBmp.Width; x++)
-        {
-            Color c = newBmp.GetPixel(x, y);
-
-            // LOGIC:
-            // Background (Blue) -> Green is 0.
-            // Text (Cyan/White) -> Green is 170+.
-            // Faint Edges       -> Green is ~80.
-            
-            // FIX 2: Threshold 60
-            // We set this low enough to catch the faint edges of the "0".
-            // Since the background is 0, this is perfectly safe.
-            
-            if (c.G > 60) 
-            {
-                newBmp.SetPixel(x, y, Color.Black); // Ink (Keep Text)
-            }
-            else
-            {
-                newBmp.SetPixel(x, y, Color.White); // Paper (Remove Background)
-            }
-        }
+        g.DrawImage(bold1x, padding, padding, w, h);
     }
     
-    return newBmp;
+    return finalBmp;
 }
 
     static Bitmap CaptureWindow(IntPtr handle)
