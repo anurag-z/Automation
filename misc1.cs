@@ -1,10 +1,11 @@
 using System;
-using System.Drawing; // Reference: System.Drawing.Common
+using System.Diagnostics;
+using System.Drawing; // System.Drawing.Common
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
-using Tesseract; // Reference: Tesseract NuGet
+using Tesseract; // Tesseract NuGet
 
 class Program
 {
@@ -26,15 +27,18 @@ class Program
     {
         try
         {
-            // 1. LAUNCH & SETUP
+            // 1. START PROCESS
             ProcessStartInfo processInfo = new ProcessStartInfo();
             processInfo.FileName = "cmd.exe";
             processInfo.WorkingDirectory = @"c:\10405";
             processInfo.Arguments = @"/k fads"; 
             processInfo.UseShellExecute = true;
 
+            Console.WriteLine("Launching Application...");
             Process p = Process.Start(processInfo);
-            Thread.Sleep(2000); 
+            
+            // INCREASED WAIT TIME to ensure window is fully visible
+            Thread.Sleep(3000); 
 
             Microsoft.VisualBasic.Interaction.AppActivate(p.Id);
             Thread.Sleep(500);
@@ -43,18 +47,29 @@ class Program
             PressKey(SC_F3);
             Thread.Sleep(2000);
 
+            // 2. CAPTURE
             Console.WriteLine("Taking screenshot...");
             using (Bitmap original = CaptureWindow(p.MainWindowHandle))
             {
-                // 2. PROCESS IMAGE
-                Console.WriteLine("Processing...");
-                using (Bitmap processed = FilterGrayscaleBold(original))
-                {
-                    // DEBUG: Save to desktop to VERIFY the image is white with black text
-                    string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                    processed.Save(Path.Combine(desktop, "final_debug.png"), ImageFormat.Png);
+                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
-                    // 3. OCR
+                // --- DEBUG STEP 1: SAVE RAW IMAGE ---
+                // If this image is BLACK, the capture code is failing (Window hidden/minimized).
+                string rawPath = Path.Combine(desktop, "debug_1_raw.png");
+                original.Save(rawPath, ImageFormat.Png);
+                Console.WriteLine($"[CHECK THIS] Saved Raw Screenshot to: {rawPath}");
+
+                // 3. PROCESS
+                Console.WriteLine("Processing Image...");
+                using (Bitmap processed = FilterSafeMode(original))
+                {
+                    // --- DEBUG STEP 2: SAVE PROCESSED IMAGE ---
+                    // If Raw is good but this is BLACK, the filter is failing.
+                    string procPath = Path.Combine(desktop, "debug_2_processed.png");
+                    processed.Save(procPath, ImageFormat.Png);
+                    Console.WriteLine($"[CHECK THIS] Saved Processed Image to: {procPath}");
+
+                    // 4. OCR
                     string tempFile = "temp_ocr.tif";
                     processed.Save(tempFile, ImageFormat.Tiff);
 
@@ -62,7 +77,6 @@ class Program
                     {
                         using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
                         {
-                            // CRITICAL: Allow Numbers, Uppercase, and Punctuation
                             engine.SetVariable("tessedit_char_whitelist", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ,.-() ");
                             
                             using (var img = Pix.LoadFromFile(tempFile)) 
@@ -86,86 +100,55 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine("ERROR: " + ex.Message);
+            Console.WriteLine("CRITICAL ERROR: " + ex.Message);
+            Console.WriteLine("Stack Trace: " + ex.StackTrace);
         }
     }
 
-    // --- THE FIX ---
-    static Bitmap FilterGrayscaleBold(Bitmap original)
+    // --- SAFE MODE FILTER ---
+    // This is the simplest, most fail-safe filter possible.
+    static Bitmap FilterSafeMode(Bitmap original)
     {
-      // STEP 1: Create the Base Layer (Threshold Only)
-        // We do this at 1x size to keep the "dots" separate first.
-        Bitmap baseLayer = new Bitmap(original.Width, original.Height);
-        using (Graphics g = Graphics.FromImage(baseLayer)) { g.Clear(Color.White); }
+        // 1. Initialize with White Background (Prevents Transparent/Black output)
+        Bitmap clean = new Bitmap(original.Width, original.Height);
+        using (Graphics g = Graphics.FromImage(clean)) 
+        {
+            g.Clear(Color.White); 
+        }
 
-        // Threshold Logic
         for (int y = 0; y < original.Height; y++) 
         {
             for (int x = 0; x < original.Width; x++)
             {
                 Color c = original.GetPixel(x, y);
-                // Brightness Calculation
+                
+                // Brightness Logic
                 int b = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
 
-                // Threshold 50 captures all text dots
+                // Threshold 50
+                // IF Brightness > 50 (Text), DRAW BLACK.
+                // IF Brightness < 50 (Background), DO NOTHING (It stays White).
                 if (b > 50) 
                 {
-                    baseLayer.SetPixel(x, y, Color.Black);
+                    clean.SetPixel(x, y, Color.Black);
                 }
             }
         }
 
-        // STEP 2: "Connect the Dots" (Smart Gap Fill)
-        // We create a new bitmap for the connected version
-        Bitmap connected = new Bitmap(original.Width, original.Height);
-        using (Graphics g = Graphics.FromImage(connected)) { g.Clear(Color.White); }
-
-        for (int y = 1; y < original.Height - 1; y++) 
-        {
-            for (int x = 1; x < original.Width - 1; x++)
-            {
-                // If the pixel is ALREADY black, keep it.
-                if (baseLayer.GetPixel(x, y).R == 0)
-                {
-                    connected.SetPixel(x, y, Color.Black);
-                }
-                else 
-                {
-                    // If it is WHITE, check neighbors.
-                    // If it is touching 2 or more Black pixels, fill it!
-                    int neighbors = 0;
-                    if (baseLayer.GetPixel(x - 1, y).R == 0) neighbors++; // Left
-                    if (baseLayer.GetPixel(x + 1, y).R == 0) neighbors++; // Right
-                    if (baseLayer.GetPixel(x, y - 1).R == 0) neighbors++; // Top
-                    if (baseLayer.GetPixel(x, y + 1).R == 0) neighbors++; // Bottom
-
-                    if (neighbors >= 2)
-                    {
-                        connected.SetPixel(x, y, Color.Black);
-                    }
-                }
-            }
-        }
-
-        // STEP 3: Scale Up 3x (Crisp Output)
-        int scale = 3; 
-        int padding = 20;
+        // 2. Scale Up 2x (Simple scale, no filtering)
+        int scale = 2;
         int w = original.Width * scale;
         int h = original.Height * scale;
-
-        Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+        Bitmap finalBmp = new Bitmap(w, h);
 
         using (Graphics g = Graphics.FromImage(finalBmp))
         {
             g.Clear(Color.White);
-
-            // NEAREST NEIGHBOR ensures we don't add gray blur.
-            // We want the sharp pixels we just created.
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            
-            g.DrawImage(connected, padding, padding, w, h);
+            g.DrawImage(clean, 0, 0, w, h);
         }
+        
         return finalBmp;
     }
 
@@ -173,8 +156,16 @@ class Program
     {
         RECT rect;
         GetWindowRect(handle, out rect);
+
         int width = rect.Right - rect.Left;
         int height = rect.Bottom - rect.Top;
+
+        Console.WriteLine($"Window Detected Size: {width}x{height} (X:{rect.Left} Y:{rect.Top})");
+
+        if (width <= 0 || height <= 0)
+        {
+            throw new Exception("Window size is 0x0! The window might be minimized or invalid.");
+        }
 
         Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
         using (Graphics g = Graphics.FromImage(bmp))
