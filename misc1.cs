@@ -93,52 +93,55 @@ class Program
     // --- THE FIX ---
     static Bitmap FilterGrayscaleBold(Bitmap original)
     {
-        // 1. Create a White Canvas (Prevents Black Screen)
-        Bitmap bold1x = new Bitmap(original.Width, original.Height);
-        using (Graphics g = Graphics.FromImage(bold1x)) { g.Clear(Color.White); }
+       // STEP 1: Clean the image at original size (1x)
+    // We simply separate Light Text from Dark Background.
+    Bitmap clean1x = new Bitmap(original.Width, original.Height);
+    
+    // Safety: Start with a White canvas
+    using (Graphics g = Graphics.FromImage(clean1x)) { g.Clear(Color.White); }
 
-        // 2. Scan Pixels
-        for (int y = 0; y < original.Height - 1; y++) 
+    for (int y = 0; y < original.Height; y++) 
+    {
+        for (int x = 0; x < original.Width; x++)
         {
-            for (int x = 0; x < original.Width - 1; x++)
+            Color c = original.GetPixel(x, y);
+
+            // Calculate Brightness (0 to 255)
+            // This works for Cyan, White, Yellow - any bright text color.
+            int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
+
+            // Threshold: 60
+            // Background is usually ~20. Text is usually > 150.
+            // 60 is the perfect cutoff to remove the background noise.
+            if (brightness > 60) 
             {
-                Color c = original.GetPixel(x, y);
-
-                // LUMINANCE FORMULA (Brightness)
-                int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
-
-                // Threshold 70: Captures Text (Cyan/White) and Edges. Ignores Dark Background.
-                if (brightness > 70) 
-                {
-                    // Draw Black Pixel
-                    bold1x.SetPixel(x, y, Color.Black);
-                    
-                    // SMART BOLDING: Fill Right and Bottom pixels to close gaps in '0' and 'E'
-                    bold1x.SetPixel(x + 1, y, Color.Black);
-                    bold1x.SetPixel(x, y + 1, Color.Black);
-                }
+                clean1x.SetPixel(x, y, Color.Black); // Ink
             }
+            // We don't need "else { SetWhite }" because we cleared the canvas to White at the start.
         }
+    }
 
-        // 3. Scale Up 2x for Tesseract
-        int scale = 2;
-        int padding = 20;
-        int w = original.Width * scale;
-        int h = original.Height * scale;
+    // STEP 2: Scale Up (2x)
+    // We scale up to make it easier for Tesseract to read the clean letters.
+    int scale = 2;
+    int padding = 20; // Add border
+    int w = original.Width * scale;
+    int h = original.Height * scale;
 
-        Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+    Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
 
-        using (Graphics g = Graphics.FromImage(finalBmp))
-        {
-            g.Clear(Color.White); // Ensure background is White
-            
-            // NEAREST NEIGHBOR keeps the bold text sharp
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            
-            g.DrawImage(bold1x, padding, padding, w, h);
-        }
+    using (Graphics g = Graphics.FromImage(finalBmp))
+    {
+        g.Clear(Color.White); // White background
+
+        // CRITICAL: NearestNeighbor
+        // Since we are using a computer font (Consolas), we want exact pixels.
+        // We do NOT want the "smoothing" that makes text blurry.
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
         
+        g.DrawImage(clean1x, padding, padding, w, h);
+    }
         return finalBmp;
     }
 
