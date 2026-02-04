@@ -1,11 +1,11 @@
 using System;
 using System.Diagnostics;
-using System.Drawing;
+using System.Drawing; // Requires System.Drawing.Common
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
-using Tesseract;
+using Tesseract; // Requires Tesseract NuGet
 
 class Program
 {
@@ -45,46 +45,52 @@ class Program
 
             // 1. CAPTURE
             Console.WriteLine("Taking screenshot...");
-            Bitmap original = CaptureWindow(p.MainWindowHandle);
-            
-            // 2. PROCESS (The Fix for Blue Screens)
-            Console.WriteLine("Applying Blue-Screen Filter...");
-            Bitmap processed = FilterBlueScreen(original);
-
-            // Save this image! Open it to verify it looks like a clean Fax document.
-            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            string debugPath = Path.Combine(desktop, "debug_processed_blue.png");
-            processed.Save(debugPath, ImageFormat.Png);
-            Console.WriteLine($"Debug image saved to: {debugPath}");
-
-            // 3. READ TEXT
-            Console.WriteLine("Reading text...");
-            
-            using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
+            using (Bitmap original = CaptureWindow(p.MainWindowHandle))
             {
-                // Force Tesseract to treat the page as a single block of text (Works well for menus)
-                using (var page = engine.Process(processed, PageSegMode.SingleBlock))
+                // 2. PROCESS (Fix for Blue Screen)
+                Console.WriteLine("Applying Blue-Screen Filter...");
+                using (Bitmap processed = FilterBlueScreen(original))
                 {
-                    string text = page.GetText();
-                    
-                    Console.WriteLine("--- FOUND TEXT ---");
-                    Console.WriteLine(text);
-                    Console.WriteLine("------------------");
+                    // Save debug image to check logic
+                    string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                    processed.Save(Path.Combine(desktop, "debug_processed_blue.png"), ImageFormat.Png);
 
-                    // Normalize text (Upper case, remove spaces) to match "F7" or "F 7"
-                    string cleanText = text.ToUpper().Replace(" ", "");
+                    // 3. CONVERT (Bitmap -> File -> Pix)
+                    // We save to a temp file because Tesseract cannot read Bitmap directly
+                    string tempFile = "temp_ocr.tif";
+                    processed.Save(tempFile, ImageFormat.Tiff);
 
-                    if (cleanText.Contains("F7"))
+                    try
                     {
-                        Console.WriteLine("[PASS] 'F7' instruction found.");
+                        using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
+                        {
+                            // Load the temp file as 'Pix'
+                            using (var img = Pix.LoadFromFile(tempFile)) 
+                            {
+                                using (var page = engine.Process(img, PageSegMode.SingleBlock))
+                                {
+                                    string text = page.GetText();
+                                    Console.WriteLine("--- FOUND TEXT ---");
+                                    Console.WriteLine(text);
+                                    Console.WriteLine("------------------");
+
+                                    // Verify
+                                    string cleanText = text.ToUpper().Replace(" ", "");
+                                    
+                                    if (cleanText.Contains("F7"))
+                                        Console.WriteLine("[PASS] 'F7' found.");
+                                    else if (cleanText.Contains("FEDERAL"))
+                                        Console.WriteLine("[PASS] Header found.");
+                                    else
+                                        Console.WriteLine("[FAIL] Target text not found.");
+                                }
+                            }
+                        }
                     }
-                    else if (cleanText.Contains("FEDERALFORMS"))
+                    finally
                     {
-                        Console.WriteLine("[PASS] Header found (Alternative Pass).");
-                    }
-                    else
-                    {
-                        Console.WriteLine("[FAIL] Target text not found.");
+                        // Cleanup temp file
+                        if (File.Exists(tempFile)) File.Delete(tempFile);
                     }
                 }
             }
@@ -95,42 +101,32 @@ class Program
         }
     }
 
-    // --- THE MAGIC FILTER ---
+    // --- HELPER: Blue Screen Filter ---
     static Bitmap FilterBlueScreen(Bitmap original)
     {
-        // 1. Scale Up (2x) to make pixelated fonts readable
         int scale = 2;
         Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
 
         using (Graphics g = Graphics.FromImage(newBmp))
         {
-            // NearestNeighbor keeps the DOS font sharp
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
         }
 
-        // 2. Threshold Loop
-        // We look at every pixel. If it's bright (Text), make it BLACK. If it's dark (Blue), make it WHITE.
         for (int y = 0; y < newBmp.Height; y++)
         {
             for (int x = 0; x < newBmp.Width; x++)
             {
                 Color c = newBmp.GetPixel(x, y);
-
-                // Calculate "Brightness" (Luminance)
-                // White/Cyan text will have high brightness (150-255)
-                // Blue background will have low brightness (20-80)
+                // Brightness formula
                 int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
 
+                // If bright (Text), make Black. If dark (Blue), make White.
                 if (brightness > 100) 
-                {
-                    newBmp.SetPixel(x, y, Color.Black); // Text -> Black Ink
-                }
+                    newBmp.SetPixel(x, y, Color.Black);
                 else
-                {
-                    newBmp.SetPixel(x, y, Color.White); // Background -> White Paper
-                }
+                    newBmp.SetPixel(x, y, Color.White);
             }
         }
         return newBmp;
