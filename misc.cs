@@ -107,13 +107,13 @@ class Program
    // --- FINAL ROBUST FILTER: THE "RED+GREEN" SUM ---
   // --- REPLACE YOUR EXISTING FILTER METHOD WITH THIS ---
 // REPLACE YOUR FILTER METHOD WITH THIS ONE
+// --- REPLACE WITH THIS "DE-BLUR" METHOD ---
 static Bitmap FilterBlueScreen(Bitmap original)
 {
-    // 1. Scale Up (2x) 
-    // We use 2x because your Font Size is 24.
-    // This creates a nice large image (approx 1600px wide) for OCR.
+    // 1. Scale Up (2x)
+    // Font 24 is already big, so 2x is plenty.
     int scale = 2;
-    int padding = 20; // Adds white border so text doesn't touch the edge
+    int padding = 20;
     int w = original.Width * scale;
     int h = original.Height * scale;
 
@@ -121,38 +121,41 @@ static Bitmap FilterBlueScreen(Bitmap original)
 
     using (Graphics g = Graphics.FromImage(newBmp))
     {
-        g.Clear(Color.White); // Start with a clean white sheet
-
-        // MANDATORY: NearestNeighbor keeps pixels square and sharp
+        g.Clear(Color.White); 
+        
+        // NEAREST NEIGHBOR IS CRITICAL
+        // It prevents the computer from adding MORE blur when scaling.
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
         
-        // Draw the original image inside the padding
         g.DrawImage(original, padding, padding, w, h);
     }
 
-    // 2. The "Green or Red" Filter
+    // 2. The "Green Only" High-Contrast Filter
     for (int y = 0; y < newBmp.Height; y++)
     {
         for (int x = 0; x < newBmp.Width; x++)
         {
             Color c = newBmp.GetPixel(x, y);
 
-            // LOGIC EXPLAINED:
-            // - Blue Background: (R:0, G:0, B:170) -> Has NO Red or Green.
-            // - Cyan Text:       (R:0, G:255, B:255) -> Has GREEN.
-            // - White Text:      (R:255, G:255, B:255) -> Has RED and GREEN.
+            // LOGIC: 
+            // We ONLY look at Green.
+            // Cyan Text (1040) = High Green (255)
+            // White Text (F7)  = High Green (255)
+            // Blue Background  = Low Green (0)
+            // Blurry Edges     = Medium Green (100-150) -> WE WANT TO DELETE THESE
             
-            // If the pixel has ANY significant Red OR Green, it must be text.
-            // We ignore Blue completely because everything has Blue in it.
+            // Threshold = 200
+            // This is very strict. It deletes the "fuzz" around the letters
+            // and separates the "0" from looking like an "8".
             
-            if (c.R > 60 || c.G > 60) 
+            if (c.G > 200) 
             {
-                newBmp.SetPixel(x, y, Color.Black); // Keep it (Ink)
+                newBmp.SetPixel(x, y, Color.Black); // Keep Core Text
             }
             else
             {
-                newBmp.SetPixel(x, y, Color.White); // Remove it (Paper)
+                newBmp.SetPixel(x, y, Color.White); // Delete Background & Blur
             }
         }
     }
