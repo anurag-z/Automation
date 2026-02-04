@@ -104,31 +104,39 @@ class Program
     // --- HELPER: Blue Screen Filter ---
    // --- IMPROVED FILTER: COLOR DISTANCE ---
    // --- FINAL FILTER: CHANNEL CHECK ---
+   // --- FINAL ROBUST FILTER: THE "RED+GREEN" SUM ---
     static Bitmap FilterBlueScreen(Bitmap original)
     {
-        // 1. Scale Up (3x) for clarity
+        // 1. Scale Up (3x) for Tesseract
         int scale = 3;
         Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
 
         using (Graphics g = Graphics.FromImage(newBmp))
         {
-            // STOP BLUR: Force "Nearest Neighbor" (Keeps pixels square and sharp)
+            // KEEP IT SHARP! (Nearest Neighbor is mandatory for DOS)
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            
             g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
         }
 
-        // 2. Color Filter (Verified by Dry Run)
+        // 2. The Filter Loop
         for (int y = 0; y < newBmp.Height; y++)
         {
             for (int x = 0; x < newBmp.Width; x++)
             {
                 Color c = newBmp.GetPixel(x, y);
 
-                // If Red > 50 OR Green > 50, it is Text (Cyan or White).
-                // Everything else is Background (Blue).
-                if (c.R > 50 || c.G > 50) 
+                // LOGIC:
+                // We sum the Red and Green values.
+                // Background (Blue) = 0 Red + 0 Green = 0 Total.
+                // Cyan Text = 0 Red + 255 Green = 255 Total.
+                // White Text = 255 Red + 255 Green = 510 Total.
+                
+                // We set the cutoff at 100. 
+                // This ignores faint background noise but catches all text.
+                int brightnessSum = c.R + c.G;
+
+                if (brightnessSum > 100) 
                 {
                     newBmp.SetPixel(x, y, Color.Black); // Ink
                 }
