@@ -106,40 +106,35 @@ class Program
    // --- FINAL FILTER: CHANNEL CHECK ---
     static Bitmap FilterBlueScreen(Bitmap original)
     {
-        // 1. Scale Up (3x) for better OCR
+        // 1. Scale Up (3x) for clarity
         int scale = 3;
         Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
 
         using (Graphics g = Graphics.FromImage(newBmp))
         {
+            // STOP BLUR: Force "Nearest Neighbor" (Keeps pixels square and sharp)
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            
             g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
         }
 
-        // 2. The "Not Blue" Filter
+        // 2. Color Filter (Verified by Dry Run)
         for (int y = 0; y < newBmp.Height; y++)
         {
             for (int x = 0; x < newBmp.Width; x++)
             {
                 Color c = newBmp.GetPixel(x, y);
 
-                // LOGIC: 
-                // The Background is Blue (R=low, G=low, B=high).
-                // The Text is White (R=high, G=high, B=high) or Cyan (R=low, G=high, B=high).
-                
-                // So, if Red > 60 OR Green > 60, it MUST be text.
-                // (Because the background has almost zero Red or Green).
-                
-                if (c.R > 60 || c.G > 60) 
+                // If Red > 50 OR Green > 50, it is Text (Cyan or White).
+                // Everything else is Background (Blue).
+                if (c.R > 50 || c.G > 50) 
                 {
-                    // It has color -> Text -> BLACK
-                    newBmp.SetPixel(x, y, Color.Black);
+                    newBmp.SetPixel(x, y, Color.Black); // Ink
                 }
                 else
                 {
-                    // It is dark/blue -> Background -> WHITE
-                    newBmp.SetPixel(x, y, Color.White); 
+                    newBmp.SetPixel(x, y, Color.White); // Paper
                 }
             }
         }
