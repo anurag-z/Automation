@@ -49,8 +49,8 @@ class Program
             Thread.Sleep(2000); // Wait for screen to update
 
             // 3. CAPTURE SCREENSHOT
-            Console.WriteLine("Taking screenshot...");
-            Bitmap screenshot = CaptureWindow(p.MainWindowHandle);
+           Console.WriteLine("Taking screenshot...");
+            Bitmap original = CaptureWindow(p.MainWindowHandle);
 
 
             int scaleFactor = 3;
