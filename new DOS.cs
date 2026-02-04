@@ -1,18 +1,21 @@
 using System;
 using System.Diagnostics;
-using System.Drawing; // System.Drawing.Common
+using System.Drawing; // Requires System.Drawing.Common
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.IO; // Required for File handling
-using Tesseract; // Required for Tesseract
+using System.Windows.Forms; // Requires System.Windows.Forms
+using Tesseract; // Requires 'Tesseract' NuGet package
 
 class Program
 {
-    // --- SETUP ---
+    // --- KEYBOARD & WINDOW SETUP ---
     [DllImport("user32.dll")]
     static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
     
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
@@ -25,6 +28,7 @@ class Program
 
     static void Main()
     {
+        // 1. Launch App
         ProcessStartInfo processInfo = new ProcessStartInfo();
         processInfo.FileName = "cmd.exe";
         processInfo.WorkingDirectory = @"c:\10405";
@@ -32,65 +36,52 @@ class Program
         processInfo.UseShellExecute = true;
 
         Process p = Process.Start(processInfo);
-        Thread.Sleep(3000); 
+        Thread.Sleep(3000); // Wait for launch
 
         try
         {
+            // 2. Focus & Action
             Microsoft.VisualBasic.Interaction.AppActivate(p.Id);
             Thread.Sleep(500);
             
             Console.WriteLine("Sending F3...");
             PressKey(SC_F3);
-            Thread.Sleep(2000);
+            Thread.Sleep(2000); // Wait for screen to update
 
-            // 1. CAPTURE (Original size, no scaling)
+            // 3. CAPTURE SCREENSHOT
             Console.WriteLine("Taking screenshot...");
-            Bitmap original = CaptureWindow(p.MainWindowHandle);
+            Bitmap screenshot = CaptureWindow(p.MainWindowHandle);
             
-            // Save for your reference
-            original.Save("debug_screenshot.png", ImageFormat.Png);
+            // Save it just so you can verify it looks right
+            string imagePath = "debug_screenshot.png";
+            screenshot.Save(imagePath, ImageFormat.Png);
 
-            // 2. READ TEXT (Simple Method)
-            Console.WriteLine("Reading text...");
+            // 4. READ TEXT (OCR)
+            Console.WriteLine("Reading text from image...");
             
+            // Point this to where you put the 'tessdata' folder
             using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
             {
-                // We use the Temp File method because it never fails
-                string tempFile = "temp_ocr.tif";
-                original.Save(tempFile, ImageFormat.Tiff);
-
-                using (var img = Pix.LoadFromFile(tempFile)) 
+                using (var img = Pix.LoadFromFile(imagePath))
                 {
-                    // SparseText worked best for your menu layout
-                    using (var page = engine.Process(img, PageSegMode.SparseText))
+                    using (var page = engine.Process(img))
                     {
                         string text = page.GetText();
                         
-                        Console.WriteLine("--- FOUND TEXT ---");
-                        Console.WriteLine(text);
-                        Console.WriteLine("------------------");
-
-                        // --- THE FIX: IGNORE SPACES ---
-                        // Tesseract often sees "F3" as "F 3". We remove spaces to catch it.
-                        string cleanText = text.Replace(" ", "").ToUpper();
-
-                        if (cleanText.Contains("F3") || cleanText.Contains("F03"))
+                        Console.WriteLine("--- OCR RESULT ---");
+                        
+                        // Verification Logic
+                        if (text.Contains("FADS"))
                         {
-                            Console.WriteLine("[PASS] F3 Found.");
-                        }
-                        else if (text.Contains("FADS"))
-                        {
-                            Console.WriteLine("[PASS] 'FADS' header found (F3 Key likely worked).");
+                            Console.WriteLine("[PASS] 'FADS' found in screenshot.");
                         }
                         else
                         {
-                            Console.WriteLine("[FAIL] Could not verify screen.");
+                            Console.WriteLine("[FAIL] Could not find expected text.");
+                            Console.WriteLine("Found this instead: \n" + text.Substring(0, Math.Min(100, text.Length)));
                         }
                     }
                 }
-                
-                // Cleanup
-                if (File.Exists(tempFile)) File.Delete(tempFile);
             }
         }
         catch (Exception ex)
@@ -99,15 +90,19 @@ class Program
         }
     }
 
-    // --- HELPER ---
+    // --- HELPER: Screenshot Active Window ---
     static Bitmap CaptureWindow(IntPtr handle)
     {
+        // Get the size of the window
         RECT rect;
         GetWindowRect(handle, out rect);
         int width = rect.Right - rect.Left;
         int height = rect.Bottom - rect.Top;
 
+        // Create a bitmap of that size
         Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+        
+        // Draw the screen into the bitmap
         using (Graphics g = Graphics.FromImage(bmp))
         {
             g.CopyFromScreen(rect.Left, rect.Top, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
