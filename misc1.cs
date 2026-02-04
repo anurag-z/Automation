@@ -104,51 +104,63 @@ class Program
     }
 
     // --- FINAL FILTER METHOD (Green > 70) ---
-    static Bitmap FilterBlueScreen(Bitmap original)
+    // --- FINAL LOGIC: FILTER FIRST, SCALE LATER ---
+static Bitmap FilterBlueScreen(Bitmap original)
+{
+    // STEP 1: Filter at ORIGINAL Size (1x)
+    // We clean the image while it is still small. 
+    // This prevents "blur" pixels from growing into "blobs".
+    
+    Bitmap clean1x = new Bitmap(original.Width, original.Height);
+    
+    for (int y = 0; y < original.Height; y++)
     {
-        // 1. Scale Up (2x)
-        int scale = 2;
-        int padding = 20;
-        int w = original.Width * scale;
-        int h = original.Height * scale;
-
-        Bitmap newBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
-
-        using (Graphics g = Graphics.FromImage(newBmp))
+        for (int x = 0; x < original.Width; x++)
         {
-            g.Clear(Color.White); 
-            
-            // NEAREST NEIGHBOR: Keeps pixels square and sharp (No Blur!)
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            
-            g.DrawImage(original, padding, padding, w, h);
-        }
+            Color c = original.GetPixel(x, y);
 
-        // 2. The Filter
-        for (int y = 0; y < newBmp.Height; y++)
-        {
-            for (int x = 0; x < newBmp.Width; x++)
+            // LOGIC:
+            // Background (Blue) has Green = 0.
+            // Text (Cyan/White) has Green > 150.
+            // Edge Blur has Green ~ 50-100.
+            
+            // We use threshold 100. 
+            // This deletes the Background AND the Blur, leaving only the sharp text core.
+            if (c.G > 100) 
             {
-                Color c = newBmp.GetPixel(x, y);
-
-                // LOGIC:
-                // We lowered the threshold to 70.
-                // This captures the edges of the letters that were fading out before.
-                // Since the Background is 0 Green, it stays White.
-                
-                if (c.G > 70) 
-                {
-                    newBmp.SetPixel(x, y, Color.Black); // Keep Text
-                }
-                else
-                {
-                    newBmp.SetPixel(x, y, Color.White); // Remove Background
-                }
+                clean1x.SetPixel(x, y, Color.Black); // Text (Ink)
+            }
+            else
+            {
+                clean1x.SetPixel(x, y, Color.White); // Background (Paper)
             }
         }
-        return newBmp;
     }
+
+    // STEP 2: Scale Up (2x)
+    // Now we resize the CLEAN image. 
+    int scale = 2;
+    int padding = 20;
+    int w = original.Width * scale;
+    int h = original.Height * scale;
+
+    Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+
+    using (Graphics g = Graphics.FromImage(finalBmp))
+    {
+        g.Clear(Color.White);
+
+        // Nearest Neighbor is CRITICAL.
+        // It keeps the pixels square and sharp.
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+        
+        // Draw the already-cleaned image
+        g.DrawImage(clean1x, padding, padding, w, h);
+    }
+    
+    return finalBmp;
+}
 
     static Bitmap CaptureWindow(IntPtr handle)
     {
