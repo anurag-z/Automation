@@ -102,36 +102,56 @@ class Program
     }
 
     // --- HELPER: Blue Screen Filter ---
+   // --- IMPROVED FILTER: COLOR DISTANCE ---
     static Bitmap FilterBlueScreen(Bitmap original)
     {
-        int scale = 2;
+        // 1. Scale Up (3x) - Essential for tiny "F7" text
+        int scale = 3;
         Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
 
         using (Graphics g = Graphics.FromImage(newBmp))
         {
+            // Keep pixels sharp (Nearest Neighbor)
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
         }
 
+        // 2. Identify the Background Color
+        // We assume the top-left pixel (0,0) is the background color (DOS Blue)
+        Color bgColor = newBmp.GetPixel(0, 0);
+
+        // 3. Filter Loop
         for (int y = 0; y < newBmp.Height; y++)
         {
             for (int x = 0; x < newBmp.Width; x++)
             {
                 Color c = newBmp.GetPixel(x, y);
-                // Brightness formula
-                int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
 
-                // If bright (Text), make Black. If dark (Blue), make White.
-                if (brightness > 100) 
-                    newBmp.SetPixel(x, y, Color.Black);
+                // Calculate the "Distance" between the current pixel and the Background
+                // If the color is very different, distance will be high.
+                int rDiff = c.R - bgColor.R;
+                int gDiff = c.G - bgColor.G;
+                int bDiff = c.B - bgColor.B;
+                
+                // Euclidean Distance Formula (Approximate)
+                int distance = (int)Math.Sqrt((rDiff * rDiff) + (gDiff * gDiff) + (bDiff * bDiff));
+
+                // THRESHOLD: 
+                // If distance > 100, it is definitely NOT blue -> It is Text (Make it Black)
+                // Otherwise -> It is Background (Make it White)
+                if (distance > 100) 
+                {
+                    newBmp.SetPixel(x, y, Color.Black); // Ink
+                }
                 else
-                    newBmp.SetPixel(x, y, Color.White);
+                {
+                    newBmp.SetPixel(x, y, Color.White); // Paper
+                }
             }
         }
         return newBmp;
     }
-
     static Bitmap CaptureWindow(IntPtr handle)
     {
         RECT rect;
