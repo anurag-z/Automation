@@ -1,169 +1,113 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing; // Requires System.Drawing.Common
+using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
-using Microsoft.VisualBasic;
+using System.Windows.Forms; // Requires System.Windows.Forms
+using Tesseract; // Requires 'Tesseract' NuGet package
 
 class Program
 {
-    // --- NATIVE METHODS ---
+    // --- KEYBOARD & WINDOW SETUP ---
     [DllImport("user32.dll")]
     static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
     
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool AttachConsole(uint dwProcessId);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    static extern bool FreeConsole();
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
-    [DllImport("kernel32.dll")]
-    static extern bool AllocConsole();
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left, Top, Right, Bottom; }
 
-    [DllImport("kernel32.dll")]
-    static extern IntPtr GetStdHandle(int nStdHandle);
-
-    [DllImport("kernel32.dll")]
-    static extern bool GetConsoleScreenBufferInfo(IntPtr hConsoleOutput, out CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    static extern bool ReadConsoleOutputCharacter(IntPtr hConsoleOutput, [Out] StringBuilder lpCharacter, uint nLength, Coord dwReadCoord, out uint lpNumberOfCharsRead);
-
-    // --- CONSTANTS ---
-    const int STD_OUTPUT_HANDLE = -11;
     const int KEYEVENTF_KEYUP = 0x0002;
     const int KEYEVENTF_SCANCODE = 0x0008;
     const byte SC_F3 = 0x3D;
 
-    // --- STRUCTS ---
-    [StructLayout(LayoutKind.Sequential)]
-    public struct Coord
-    {
-        public short X;
-        public short Y;
-        public Coord(short x, short y) { X = x; Y = y; }
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct SMALL_RECT
-    {
-        public short Left, Top, Right, Bottom;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct CONSOLE_SCREEN_BUFFER_INFO
-    {
-        public Coord dwSize;
-        public Coord dwCursorPosition;
-        public ushort wAttributes;
-        public SMALL_RECT srWindow;
-        public Coord dwMaximumWindowSize;
-    }
-
-    // --- MAIN ---
     static void Main()
     {
-        // 1. Launch App (Without forcing mode)
+        // 1. Launch App
         ProcessStartInfo processInfo = new ProcessStartInfo();
         processInfo.FileName = "cmd.exe";
         processInfo.WorkingDirectory = @"c:\10405";
-        processInfo.Arguments = @"/k fads"; // No 'mode' command
+        processInfo.Arguments = @"/k fads";
         processInfo.UseShellExecute = true;
 
         Process p = Process.Start(processInfo);
-        Thread.Sleep(3000); 
+        Thread.Sleep(3000); // Wait for launch
 
         try
         {
-            // 2. Interact
-            Interaction.AppActivate(p.Id);
+            // 2. Focus & Action
+            Microsoft.VisualBasic.Interaction.AppActivate(p.Id);
             Thread.Sleep(500);
-            PressKey(SC_F3);
-            Thread.Sleep(2000);
-
-            // 3. READ SCREEN (Returns a list of lines)
-            List<string> screenLines = ReadConsoleLines(p.Id);
-
-            // 4. RE-OPEN CONSOLE TO SHOW RESULTS
-            AllocConsole(); 
-            Console.WriteLine($"--- Captured {screenLines.Count} Lines ---");
-
-            // --- VERIFICATION EXAMPLES ---
             
-            // A. Check the TOP line (Header)
-            if (screenLines.Count > 0)
-            {
-                string header = screenLines[0].Trim();
-                Console.WriteLine($"Header: '{header}'");
-                
-                if (header.Contains("FADS")) 
-                    Console.WriteLine("[PASS] Header correct.");
-                else 
-                    Console.WriteLine("[FAIL] Header mismatch.");
-            }
+            Console.WriteLine("Sending F3...");
+            PressKey(SC_F3);
+            Thread.Sleep(2000); // Wait for screen to update
 
-            // B. Check the BOTTOM line (Status Bar)
-            // Note: The buffer might be taller than the window, so we check the last non-empty line
-            for (int i = screenLines.Count - 1; i >= 0; i--)
+            // 3. CAPTURE SCREENSHOT
+            Console.WriteLine("Taking screenshot...");
+            Bitmap screenshot = CaptureWindow(p.MainWindowHandle);
+            
+            // Save it just so you can verify it looks right
+            string imagePath = "debug_screenshot.png";
+            screenshot.Save(imagePath, ImageFormat.Png);
+
+            // 4. READ TEXT (OCR)
+            Console.WriteLine("Reading text from image...");
+            
+            // Point this to where you put the 'tessdata' folder
+            using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
             {
-                if (!string.IsNullOrWhiteSpace(screenLines[i]))
+                using (var img = Pix.LoadFromFile(imagePath))
                 {
-                    Console.WriteLine($"Status Line Found (Row {i}): '{screenLines[i].Trim()}'");
-                    break;
-                }
-            }
-
-            Console.ReadLine(); // Pause to see result
-        }
-        catch (Exception ex)
-        {
-            AllocConsole();
-            Console.WriteLine("Error: " + ex.Message);
-            Console.ReadLine();
-        }
-    }
-
-    // --- HELPER: Read Lines Dynamically ---
-    static List<string> ReadConsoleLines(int processId)
-    {
-        List<string> lines = new List<string>();
-        FreeConsole(); 
-
-        if (AttachConsole((uint)processId))
-        {
-            IntPtr stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-            CONSOLE_SCREEN_BUFFER_INFO csbi;
-
-            // 1. ASK the window how big it is
-            if (GetConsoleScreenBufferInfo(stdOut, out csbi))
-            {
-                int width = csbi.dwSize.X;
-                int height = csbi.dwSize.Y;
-                int totalChars = width * height;
-
-                StringBuilder sb = new StringBuilder(totalChars);
-                uint read = 0;
-
-                // 2. Read the whole buffer
-                ReadConsoleOutputCharacter(stdOut, sb, (uint)totalChars, new Coord(0, 0), out read);
-
-                string allText = sb.ToString();
-
-                // 3. Slice it into lines based on the DETECTED width
-                for (int i = 0; i < height; i++)
-                {
-                    // Safety check to avoid index errors
-                    if (i * width + width <= allText.Length)
+                    using (var page = engine.Process(img))
                     {
-                        string line = allText.Substring(i * width, width);
-                        lines.Add(line);
+                        string text = page.GetText();
+                        
+                        Console.WriteLine("--- OCR RESULT ---");
+                        
+                        // Verification Logic
+                        if (text.Contains("FADS"))
+                        {
+                            Console.WriteLine("[PASS] 'FADS' found in screenshot.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("[FAIL] Could not find expected text.");
+                            Console.WriteLine("Found this instead: \n" + text.Substring(0, Math.Min(100, text.Length)));
+                        }
                     }
                 }
             }
-            FreeConsole();
         }
-        return lines;
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error: " + ex.Message);
+        }
+    }
+
+    // --- HELPER: Screenshot Active Window ---
+    static Bitmap CaptureWindow(IntPtr handle)
+    {
+        // Get the size of the window
+        RECT rect;
+        GetWindowRect(handle, out rect);
+        int width = rect.Right - rect.Left;
+        int height = rect.Bottom - rect.Top;
+
+        // Create a bitmap of that size
+        Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+        
+        // Draw the screen into the bitmap
+        using (Graphics g = Graphics.FromImage(bmp))
+        {
+            g.CopyFromScreen(rect.Left, rect.Top, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
+        }
+        return bmp;
     }
 
     static void PressKey(byte scanCode)
