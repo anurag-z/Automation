@@ -24,7 +24,7 @@ class Program
         processInfo.WorkingDirectory = @"c:\10405";
         processInfo.Arguments = @"/k fads"; 
         processInfo.UseShellExecute = true;
-
+    //processInfo.Arguments = @"/k mode con: cols=80 lines=50 && fads";
         Process p = Process.Start(processInfo);
 
         Thread.Sleep(3000); 
