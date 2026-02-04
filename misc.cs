@@ -108,10 +108,11 @@ class Program
   // --- REPLACE YOUR EXISTING FILTER METHOD WITH THIS ---
 // REPLACE YOUR FILTER METHOD WITH THIS ONE
 // --- REPLACE WITH THIS "DE-BLUR" METHOD ---
+// --- FINAL TUNED FILTER (GREEN > 80) ---
 static Bitmap FilterBlueScreen(Bitmap original)
 {
     // 1. Scale Up (2x)
-    // Font 24 is already big, so 2x is plenty.
+    // Font 24 is large, so 2x scale is perfect.
     int scale = 2;
     int padding = 20;
     int w = original.Width * scale;
@@ -123,39 +124,33 @@ static Bitmap FilterBlueScreen(Bitmap original)
     {
         g.Clear(Color.White); 
         
-        // NEAREST NEIGHBOR IS CRITICAL
-        // It prevents the computer from adding MORE blur when scaling.
+        // NEAREST NEIGHBOR: Keeps text blocky and readable
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
         
         g.DrawImage(original, padding, padding, w, h);
     }
 
-    // 2. The "Green Only" High-Contrast Filter
+    // 2. The "Safe Green" Filter
     for (int y = 0; y < newBmp.Height; y++)
     {
         for (int x = 0; x < newBmp.Width; x++)
         {
             Color c = newBmp.GetPixel(x, y);
 
-            // LOGIC: 
-            // We ONLY look at Green.
-            // Cyan Text (1040) = High Green (255)
-            // White Text (F7)  = High Green (255)
-            // Blue Background  = Low Green (0)
-            // Blurry Edges     = Medium Green (100-150) -> WE WANT TO DELETE THESE
+            // LOGIC FIX:
+            // We reduced the threshold from 200 down to 80.
             
-            // Threshold = 200
-            // This is very strict. It deletes the "fuzz" around the letters
-            // and separates the "0" from looking like an "8".
+            // Blue Background: Green is approx 0. (0 is NOT > 80) -> Becomes White.
+            // Cyan/White Text: Green is approx 170-255. (170 IS > 80) -> Becomes Black.
             
-            if (c.G > 200) 
+            if (c.G > 80) 
             {
-                newBmp.SetPixel(x, y, Color.Black); // Keep Core Text
+                newBmp.SetPixel(x, y, Color.Black); // Ink (Text)
             }
             else
             {
-                newBmp.SetPixel(x, y, Color.White); // Delete Background & Blur
+                newBmp.SetPixel(x, y, Color.White); // Paper (Background)
             }
         }
     }
