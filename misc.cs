@@ -106,46 +106,66 @@ class Program
    // --- FINAL FILTER: CHANNEL CHECK ---
    // --- FINAL ROBUST FILTER: THE "RED+GREEN" SUM ---
   // --- REPLACE YOUR EXISTING FILTER METHOD WITH THIS ---
-static Bitmap FilterBlueScreen(Bitmap original)
-{
-    // 1. Scale Up (2x) - Perfect for Font Size 24
-    int scale = 2;
-    Bitmap newBmp = new Bitmap(original.Width * scale, original.Height * scale);
-
-    using (Graphics g = Graphics.FromImage(newBmp))
+static Bitmap SmartFilter(Bitmap original)
     {
-        // NearestNeighbor is MANDATORY for DOS text
-        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-        g.DrawImage(original, 0, 0, newBmp.Width, newBmp.Height);
-    }
+        // 1. Scale Up (2x for Font 24)
+        int scale = 2;
+        int padding = 20; // Add white border
+        int w = original.Width * scale;
+        int h = original.Height * scale;
 
-    // 2. Brightness Filter (Tuned High)
-    for (int y = 0; y < newBmp.Height; y++)
-    {
-        for (int x = 0; x < newBmp.Width; x++)
+        // Create bitmap with extra room (Padding)
+        Bitmap newBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
+
+        using (Graphics g = Graphics.FromImage(newBmp))
         {
-            Color c = newBmp.GetPixel(x, y);
+            // Fill background with White
+            g.Clear(Color.White);
 
-            // Calculate Brightness
-            int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
+            // Keep pixel sharpness
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            
+            // Draw image in the middle (creating a border)
+            g.DrawImage(original, padding, padding, w, h);
+        }
 
-            // --- THE FIX ---
-            // Old Value: 40 (Too sensitive, caught the background)
-            // New Value: 90 (Safer. Catches Text, ignores Blue background)
-            if (brightness > 90) 
+        // 2. The "Not Blue" Filter
+        // Instead of Brightness, we remove anything that is "Mostly Blue".
+        for (int y = 0; y < newBmp.Height; y++)
+        {
+            for (int x = 0; x < newBmp.Width; x++)
             {
-                newBmp.SetPixel(x, y, Color.Black); // Text
-            }
-            else
-            {
-                newBmp.SetPixel(x, y, Color.White); // Background
+                Color c = newBmp.GetPixel(x, y);
+
+                // LOGIC: Is this pixel "Blue Background"?
+                // Blue background has High Blue, Low Red, Low Green.
+                // Text (White/Cyan) has High Green and/or High Red.
+                
+                // If Blue is dominant (> Red+20 AND > Green+20), it's background.
+                // We turn background White. Everything else (Text) becomes Black.
+                
+                bool isBlueBackground = (c.B > c.R + 20) && (c.B > c.G + 20);
+
+                // Note: We use a threshold of 50 to ignore pure black pixels/shadows
+                if (isBlueBackground && c.B > 50) 
+                {
+                    newBmp.SetPixel(x, y, Color.White); // Erase Background
+                }
+                else if (c.R > 50 || c.G > 50 || c.B > 50)
+                {
+                    // If it has ANY significant color and isn't just Blue, it's Text.
+                    newBmp.SetPixel(x, y, Color.Black); // Keep Text
+                }
+                else
+                {
+                     // Very dark pixels (black screen border) -> White
+                     newBmp.SetPixel(x, y, Color.White);
+                }
             }
         }
+        return newBmp;
     }
-    
-    return newBmp;
-}
     static Bitmap CaptureWindow(IntPtr handle)
     {
         RECT rect;
