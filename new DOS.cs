@@ -51,18 +51,33 @@ class Program
             // 3. CAPTURE SCREENSHOT
             Console.WriteLine("Taking screenshot...");
             Bitmap screenshot = CaptureWindow(p.MainWindowHandle);
-            
-            // Save it just so you can verify it looks right
-            string imagePath = "debug_screenshot.png";
-            screenshot.Save(imagePath, ImageFormat.Png);
 
-            // 4. READ TEXT (OCR)
-            Console.WriteLine("Reading text from image...");
+
+            int scaleFactor = 3;
+            Bitmap enlarged = new Bitmap(original.Width * scaleFactor, original.Height * scaleFactor);
             
+            using (Graphics g = Graphics.FromImage(enlarged))
+            {
+                // Use High Quality settings to smooth out the jagged DOS pixels
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                
+                g.DrawImage(original, 0, 0, enlarged.Width, enlarged.Height);
+            }
+
+            // Save the enlarged one so you can verify it looks clear
+            enlarged.Save("debug_enlarged.png", ImageFormat.Png);
+
+            // 4. READ TEXT (OCR) WITH TUNING
+            Console.WriteLine("Reading text...");
+             
             // Point this to where you put the 'tessdata' folder
             using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
             {
-                using (var img = Pix.LoadFromFile(imagePath))
+                // CRITICAL: Tell Tesseract to expect "Sparse Text" (scattered words), not a paragraph.
+                // PageSegMode.SparseText (Mode 11) or Auto (Mode 3) usually works best for menus.
+                using (var page = engine.Process(enlarged, PageSegMode.SparseText))
                 {
                     using (var page = engine.Process(img))
                     {
