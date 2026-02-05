@@ -1,30 +1,30 @@
-using System;
-using System.Runtime.InteropServices;
-using System.Threading;
-
 public static class InputManager
 {
-    [DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
+    // Hardware Simulation Constants
     private const int KEY_UP = 0x0002;
     private const int KEY_SCANCODE = 0x0008;
 
-    // Common Scan Codes for DOS
-    public const byte SC_ESCAPE = 0x01;
-    public const byte SC_ENTER = 0x1C;
+    // --- REUSABLE NAVIGATION METHODS ---
 
-    public static void PressKey(byte scanCode, int delayMs = 150)
+    public static void PressFKey(int fNumber, int delayMs = 600)
     {
-        // Key Down
-        keybd_event(0, scanCode, KEY_SCANCODE, UIntPtr.Zero);
-        Thread.Sleep(50); // Holding time
-        
-        // Key Up
-        keybd_event(0, scanCode, KEY_SCANCODE | KEY_UP, UIntPtr.Zero);
-        
-        // VDI Buffer Delay: Gives the remote screen time to update
-        Thread.Sleep(delayMs); 
+        // F1 is 0x3B, F2 is 0x3C, etc.
+        byte scanCode = (byte)(0x3A + fNumber); 
+        ExecuteRawPress(scanCode, delayMs);
+    }
+
+    public static void PressSpecialKey(string keyName, int delayMs = 600)
+    {
+        byte scanCode = keyName.ToUpper() switch
+        {
+            "ESC" => 0x01,
+            "ENTER" => 0x1C,
+            "TAB" => 0x0F,
+            "UP" => 0x48,
+            "DOWN" => 0x50,
+            _ => 0
+        };
+        if (scanCode != 0) ExecuteRawPress(scanCode, delayMs);
     }
 
     public static void TypeString(string text)
@@ -32,8 +32,23 @@ public static class InputManager
         foreach (char c in text)
         {
             byte code = GetScanCode(c);
-            if (code != 0) PressKey(code, 80); // Quick typing delay
+            if (code != 0) ExecuteRawPress(code, 100); // Typing delay for VDI stability
         }
+    }
+
+    // --- PRIVATE HARDWARE CORE ---
+
+    private static void ExecuteRawPress(byte scanCode, int postDelay)
+    {
+        // Key Down
+        keybd_event(0, scanCode, KEY_SCANCODE, UIntPtr.Zero);
+        Thread.Sleep(50); 
+        
+        // Key Up
+        keybd_event(0, scanCode, KEY_SCANCODE | KEY_UP, UIntPtr.Zero);
+        
+        // VDI Sync Delay: Critical for legacy app rendering
+        Thread.Sleep(postDelay); 
     }
 
     private static byte GetScanCode(char c)
@@ -50,4 +65,7 @@ public static class InputManager
             '9' => 0x0A, _ => 0
         };
     }
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 }

@@ -1,23 +1,18 @@
-public class TaxNavigation
+public class TaxFlow
 {
-    public void GoToFederalForms()
+    public void NavigateToClientSearch()
     {
-        // STEP 1: Open Menu via Escape
-        InputManager.PressKey(InputManager.SC_ESCAPE, 500);
+        // 1. Enter the Federal Module
+        InputManager.PressFKey(3); 
 
-        // STEP 2: Select 'G' for "Go To Screen"
-        InputManager.PressKey(0x22, 500); // 0x22 is 'G'
+        // 2. Open the 'G'o-to menu via Escape + Initial
+        InputManager.PressSpecialKey("ESC");
+        InputManager.TypeString("G");
 
-        // STEP 3: Type the Screen Name
-        InputManager.TypeString("FED"); 
+        // 3. Type the screen code
+        InputManager.TypeString("1040");
 
-        // STEP 4: Confirm with Enter
-        InputManager.PressKey(InputManager.SC_ENTER, 1000);
-    }
-
-    public void OpenSpecificMenu(char initial)
-    {
-        InputManager.PressKey(InputManager.SC_ESCAPE, 300);
-        InputManager.TypeString(initial.ToString());
+        // 4. Submit
+        InputManager.PressSpecialKey("ENTER");
     }
 }
