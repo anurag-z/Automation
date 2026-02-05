@@ -94,58 +94,66 @@ class Program
         }
     }
 
-    // --- FINAL TUNED METHOD ---
-    static Bitmap FilterPrecision(Bitmap original)
+    static Bitmap FilterBlueScreen(Bitmap original)
+{
+    // STEP 1: Pass One - Safe Capture
+    // We create a base layer using a standard threshold.
+    Bitmap baseLayer = new Bitmap(original.Width, original.Height);
+    using (Graphics g = Graphics.FromImage(baseLayer)) 
+    { 
+        g.Clear(Color.White); // FORCE WHITE BACKGROUND
+    }
+
+    for (int y = 0; y < original.Height; y++)
     {
-        // 1. Create White Canvas (Re-using the logic that successfully created a white page before)
-        Bitmap clean1x = new Bitmap(original.Width, original.Height);
-        using (Graphics g = Graphics.FromImage(clean1x)) { g.Clear(Color.White); }
-
-        for (int y = 0; y < original.Height - 1; y++) 
+        for (int x = 0; x < original.Width; x++)
         {
-            for (int x = 0; x < original.Width - 1; x++)
+            Color c = original.GetPixel(x, y);
+            // Brightness check
+            int b = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
+
+            // Threshold 45 is the "Sweet Spot" for your DOS screen.
+            if (b > 45) baseLayer.SetPixel(x, y, Color.Black);
+        }
+    }
+
+    // STEP 2: Pass Two - Precision Connection
+    // If a pixel is white but has black pixels above AND below it, 
+    // it's a "gap" in a vertical line (common in the number 0). We fill it.
+    Bitmap final1x = new Bitmap(baseLayer);
+    for (int y = 1; y < baseLayer.Height - 1; y++)
+    {
+        for (int x = 1; x < baseLayer.Width - 1; x++)
+        {
+            if (baseLayer.GetPixel(x, y).R == 255) // If White
             {
-                Color c = original.GetPixel(x, y);
+                // Check for vertical or horizontal gaps
+                bool verticalGap = (baseLayer.GetPixel(x, y - 1).R == 0 && baseLayer.GetPixel(x, y + 1).R == 0);
+                bool horizontalGap = (baseLayer.GetPixel(x - 1, y).R == 0 && baseLayer.GetPixel(x + 1, y).R == 0);
 
-                // Brightness Logic
-                int b = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
-
-                // THRESHOLD 35 (The Magic Number)
-                // - Background is ~20 (Ignored)
-                // - Faint Edges are ~40-60 (CAPTURED!) -> This closes the "0" gap.
-                // - Solid Text is ~150+ (CAPTURED!)
-                if (b > 35) 
+                if (verticalGap || horizontalGap)
                 {
-                    // DRAW 1 PIXEL ONLY
-                    // We do NOT bold it. We rely on the low threshold to find the 
-                    // natural thickness of the letter.
-                    clean1x.SetPixel(x, y, Color.Black);
+                    final1x.SetPixel(x, y, Color.Black);
                 }
             }
         }
-
-        // 2. Scale Up 2x (Standard OCR Size)
-        int scale = 2;
-        int padding = 20;
-        int w = original.Width * scale;
-        int h = original.Height * scale;
-
-        Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
-
-        using (Graphics g = Graphics.FromImage(finalBmp))
-        {
-            g.Clear(Color.White); // Double-check safety clear
-            
-            // Nearest Neighbor keeps the pixels exact (no blur)
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            
-            g.DrawImage(clean1x, padding, padding, w, h);
-        }
-        
-        return finalBmp;
     }
 
+    // STEP 3: Professional Scaling (2x)
+    int scale = 2;
+    int padding = 20;
+    Bitmap finalBmp = new Bitmap((original.Width * scale) + (padding * 2), (original.Height * scale) + (padding * 2));
+
+    using (Graphics g = Graphics.FromImage(finalBmp))
+    {
+        g.Clear(Color.White); // SECOND SAFETY CLEAR
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+        g.DrawImage(final1x, padding, padding, original.Width * scale, original.Height * scale);
+    }
+
+    return finalBmp;
+}
     static Bitmap CaptureWindow(IntPtr handle)
     {
         RECT rect;
