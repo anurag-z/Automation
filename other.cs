@@ -6,10 +6,11 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
 using Tesseract;
+using Tesseract.Drawing;
 
 class DosAutomation
 {
-    // --- WIN32 API for Window Management ---
+    // ---------------- WIN32 ----------------
     [DllImport("user32.dll")]
     static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
@@ -24,136 +25,187 @@ class DosAutomation
 
     const int SW_RESTORE = 9;
 
+    static TesseractEngine engine;
+
     static void Main()
     {
-        // 1. Setup paths
-        string tessDataPath = @"./tessdata"; // Ensure this folder contains eng.traineddata
+        string tessDataPath = @"./tessdata";
         string debugFolder = @"C:\Temp\OCR_Debug";
         Directory.CreateDirectory(debugFolder);
 
+        // --- INIT OCR ONCE ---
+        engine = new TesseractEngine(tessDataPath, "eng", EngineMode.LstmOnly);
+        engine.DefaultPageSegMode = PageSegMode.SingleLine;
+        engine.SetVariable("tessedit_char_whitelist",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-.:=,() ");
+
         try
         {
-            // 2. Launch or Find the DOS App
-            Process[] processes = Process.GetProcessesByName("cmd");
-            if (processes.Length == 0) { Console.WriteLine("DOS App (cmd) not running."); return; }
-            IntPtr hwnd = processes[0].MainWindowHandle;
+            // --- LAUNCH DOS ---
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                WorkingDirectory = @"C:\10405",
+                Arguments = "/k fads",
+                UseShellExecute = true
+            };
 
-            // Bring to front - Essential for VDI pixel capture
+            Process p = Process.Start(psi);
+
+            // --- WAIT FOR WINDOW ---
+            IntPtr hwnd = IntPtr.Zero;
+            for (int i = 0; i < 15; i++)
+            {
+                p.Refresh();
+                hwnd = p.MainWindowHandle;
+                if (hwnd != IntPtr.Zero) break;
+                Thread.Sleep(1000);
+            }
+
+            if (hwnd == IntPtr.Zero)
+                throw new Exception("DOS window not found.");
+
             ShowWindow(hwnd, SW_RESTORE);
             SetForegroundWindow(hwnd);
-            Thread.Sleep(1000); // Wait for VDI redraw
+            Thread.Sleep(1000);
 
-            // 3. Capture and Process
-            using (Bitmap fullScreen = CaptureWindow(hwnd))
+            using (Bitmap screen = CaptureWindow(hwnd))
             {
-                var result = ReadTargetedAreas(fullScreen, tessDataPath, debugFolder);
+                var result = ReadTargetedAreas(screen, debugFolder);
 
-                Console.WriteLine("\n--- OCR RESULTS ---");
-                Console.WriteLine($"BOTTOM LINE: {result.BottomLine}");
-                Console.WriteLine($"HIGHLIGHTED: {result.HighlightedRow}");
-                Console.WriteLine("-------------------\n");
-
-                // 4. Verification Example
-                if (result.BottomLine.Contains("9=Exit"))
-                {
-                    Console.WriteLine("Verification Success: On Main Menu.");
-                }
+                Console.WriteLine("\n--- OCR RESULT ---");
+                Console.WriteLine("HIGHLIGHTED ROW:");
+                Console.WriteLine(result.HighlightedRow);
+                Console.WriteLine("\nBOTTOM LINE:");
+                Console.WriteLine(result.BottomLine);
+                Console.WriteLine("------------------");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error: " + ex.Message);
+            Console.WriteLine("ERROR: " + ex.Message);
+        }
+        finally
+        {
+            engine?.Dispose();
         }
     }
 
-    // --- TARGETED READING LOGIC ---
-    static (string HighlightedRow, string BottomLine) ReadTargetedAreas(Bitmap bmp, string dataPath, string debug)
-    {
-        string highlightedText = "";
-        string bottomText = "";
+    // ---------------- OCR LOGIC ----------------
 
-        // Area A: Find Highlighted Row (Dynamic Y-Axis)
-        int midX = bmp.Width / 2;
-        int startY = -1, endY = -1;
+    static (string HighlightedRow, string BottomLine) ReadTargetedAreas(Bitmap bmp, string debug)
+    {
+        int highlightY = DetectHighlightRow(bmp);
+        int lineHeight = bmp.Height / 25; // DOS = 25 rows
+
+        string highlight = "";
+        string bottom = "";
+
+        if (highlightY > 0)
+        {
+            Rectangle highlightRect = new Rectangle(
+                0,
+                Math.Max(0, highlightY - lineHeight / 2),
+                bmp.Width,
+                lineHeight
+            );
+
+            highlight = ExtractText(bmp, highlightRect,
+                Path.Combine(debug, "highlight.png"));
+        }
+
+        Rectangle bottomRect = new Rectangle(
+            0,
+            bmp.Height - lineHeight,
+            bmp.Width,
+            lineHeight
+        );
+
+        bottom = ExtractText(bmp, bottomRect,
+            Path.Combine(debug, "bottom.png"));
+
+        return (highlight, bottom);
+    }
+
+    static int DetectHighlightRow(Bitmap bmp)
+    {
+        int bestRow = -1;
+        double bestScore = 0;
+
         for (int y = 0; y < bmp.Height - 40; y++)
         {
-            Color c = bmp.GetPixel(midX, y);
-            // Detect non-standard blue (Highlight color)
-            if (c.B > 150 && c.R < 100 && c.G < 180) 
+            double score = 0;
+
+            for (int x = 0; x < bmp.Width; x += 6)
             {
-                if (startY == -1) startY = y;
-                endY = y;
+                Color c = bmp.GetPixel(x, y);
+                score += (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B);
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestRow = y;
             }
         }
-
-        // OCR Highlighted Line
-        if (startY != -1)
-        {
-            Rectangle rect = new Rectangle(0, startY, bmp.Width, (endY - startY) + 2);
-            highlightedText = ExtractText(bmp, rect, dataPath, Path.Combine(debug, "highlight.png"));
-        }
-
-        // Area B: Bottom Line (Fixed Y-Axis)
-        Rectangle bottomRect = new Rectangle(0, bmp.Height - 30, bmp.Width, 30);
-        bottomText = ExtractText(bmp, bottomRect, dataPath, Path.Combine(debug, "bottom.png"));
-
-        return (highlightedText, bottomText);
+        return bestRow;
     }
 
-    static string ExtractText(Bitmap source, Rectangle region, string dataPath, string debugPath)
+    static string ExtractText(Bitmap source, Rectangle region, string debugPath)
     {
         using (Bitmap crop = source.Clone(region, source.PixelFormat))
         using (Bitmap processed = CleanImageForOcr(crop))
         {
-            processed.Save(debugPath); // Save for visual verification
+            processed.Save(debugPath, ImageFormat.Png);
 
-            using (var engine = new TesseractEngine(dataPath, "eng", EngineMode.LstmOnly))
+            using (var pix = PixConverter.ToPix(processed))
+            using (var page = engine.Process(pix))
             {
-                // PSM 7: Treat as a single text line for maximum accuracy
-                engine.DefaultPageSegMode = PageSegMode.SingleLine;
-                engine.SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.:= ");
-
-                using (var page = engine.Process(processed))
-                {
-                    return page.GetText().Trim();
-                }
+                return page.GetText().Trim();
             }
         }
     }
 
-    static Bitmap CleanImageForOcr(Bitmap part)
+    static Bitmap CleanImageForOcr(Bitmap input)
     {
-        // Scale 4x using NearestNeighbor to keep DOS pixels sharp
-        Bitmap scaled = new Bitmap(part.Width * 4, part.Height * 4);
+        Bitmap scaled = new Bitmap(input.Width * 4, input.Height * 4);
+
         using (Graphics g = Graphics.FromImage(scaled))
         {
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.DrawImage(part, 0, 0, scaled.Width, scaled.Height);
+            g.InterpolationMode =
+                System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            g.DrawImage(input, 0, 0, scaled.Width, scaled.Height);
         }
 
-        // Binarization (Luminance Threshold)
         for (int y = 0; y < scaled.Height; y++)
         {
             for (int x = 0; x < scaled.Width; x++)
             {
                 Color c = scaled.GetPixel(x, y);
-                scaled.SetPixel(x, y, c.GetBrightness() > 0.45f ? Color.Black : Color.White);
+                scaled.SetPixel(
+                    x, y,
+                    c.GetBrightness() < 0.5f ? Color.Black : Color.White
+                );
             }
         }
         return scaled;
     }
 
+    // ---------------- SCREEN CAPTURE ----------------
+
     static Bitmap CaptureWindow(IntPtr hWnd)
     {
         GetWindowRect(hWnd, out RECT rect);
+
         int width = rect.Right - rect.Left;
         int height = rect.Bottom - rect.Top;
 
         Bitmap bmp = new Bitmap(width, height);
+
         using (Graphics g = Graphics.FromImage(bmp))
         {
-            // Direct screen copy bypasses VDI hardware acceleration black-screens
-            g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new Size(width, height));
+            g.CopyFromScreen(rect.Left, rect.Top, 0, 0,
+                new Size(width, height));
         }
         return bmp;
     }
