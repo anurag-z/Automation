@@ -122,45 +122,46 @@ class Program
     }
 
     // ---------------- IMAGE FILTER (DOS BLUE UI) ----------------
-    static Bitmap FilterDosBlueScreen(Bitmap original)
+    static Bitmap FilterDosBlueScreenFlexible(Bitmap original)
+{
+    Bitmap output = new Bitmap(original.Width, original.Height);
+
+    for (int y = 0; y < original.Height; y++)
     {
-        Bitmap output = new Bitmap(original.Width, original.Height);
-
-        for (int y = 0; y < original.Height; y++)
+        for (int x = 0; x < original.Width; x++)
         {
-            for (int x = 0; x < original.Width; x++)
-            {
-                Color c = original.GetPixel(x, y);
+            Color c = original.GetPixel(x, y);
 
-                // Dark blue text
-                bool isDarkBlueText =
-                    c.B > c.R + 20 &&
-                    c.B > c.G + 20 &&
-                    c.B < 200;
+            // Detect blue text pixels (adjust thresholds if needed)
+            bool isBlueText =
+                c.B > c.R + 15 &&
+                c.B > c.G + 15 &&
+                c.B > 80 &&  // Avoid very pale blues
+                c.B < 200;   // Avoid very dark blue backgrounds
 
-                // White text
-                bool isWhiteText =
-                    c.R > 220 && c.G > 220 && c.B > 220;
+            // Detect white text pixels (fallback)
+            bool isWhiteText =
+                c.R > 220 && c.G > 220 && c.B > 220;
 
-                if (isDarkBlueText || isWhiteText)
-                    output.SetPixel(x, y, Color.Black);
-                else
-                    output.SetPixel(x, y, Color.White);
-            }
+            if (isBlueText || isWhiteText)
+                output.SetPixel(x, y, Color.Black);
+            else
+                output.SetPixel(x, y, Color.White);
         }
-
-        // Scale 2x (nearest neighbor)
-        Bitmap scaled = new Bitmap(output.Width * 2, output.Height * 2);
-        using (Graphics g = Graphics.FromImage(scaled))
-        {
-            g.Clear(Color.White);
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.DrawImage(output, 0, 0, scaled.Width, scaled.Height);
-        }
-
-        scaled.SetResolution(300, 300);
-        return scaled;
     }
+
+    // Scale 2x (nearest neighbor) for better OCR accuracy
+    Bitmap scaled = new Bitmap(output.Width * 2, output.Height * 2);
+    using (Graphics g = Graphics.FromImage(scaled))
+    {
+        g.Clear(Color.White);
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.DrawImage(output, 0, 0, scaled.Width, scaled.Height);
+    }
+    scaled.SetResolution(300, 300);
+
+    return scaled;
+}
 
     // ---------------- KEY PRESS ----------------
     static void PressKey(byte scanCode)
