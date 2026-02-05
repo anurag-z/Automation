@@ -122,44 +122,88 @@ class Program
     }
 
     // ---------------- IMAGE FILTER (DOS BLUE UI) ----------------
-    static Bitmap FilterDosBlueScreenFlexible(Bitmap original)
+   // ---------------- SMART IMAGE FILTER (Background Removal) ----------------
+static Bitmap FilterDosBlueScreen_Smart(Bitmap original)
 {
-    Bitmap output = new Bitmap(original.Width, original.Height);
+    // 1. Create a 2x scaled bitmap immediately (better for Tesseract)
+    Bitmap scaled = new Bitmap(original.Width * 2, original.Height * 2);
 
-    for (int y = 0; y < original.Height; y++)
+    using (Bitmap temp = new Bitmap(original.Width, original.Height))
     {
-        for (int x = 0; x < original.Width; x++)
+        // Access raw bits for speed
+        System.Drawing.Imaging.BitmapData data = original.LockBits(
+            new Rectangle(0, 0, original.Width, original.Height),
+            System.Drawing.Imaging.ImageLockMode.ReadOnly,
+            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+        System.Drawing.Imaging.BitmapData outData = temp.LockBits(
+            new Rectangle(0, 0, temp.Width, temp.Height),
+            System.Drawing.Imaging.ImageLockMode.WriteOnly,
+            System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+        unsafe
         {
-            Color c = original.GetPixel(x, y);
+            byte* ptr = (byte*)data.Scan0;
+            byte* outPtr = (byte*)outData.Scan0;
+            int height = original.Height;
+            int width = original.Width;
+            int stride = data.Stride;
 
-            // Detect blue text pixels (adjust thresholds if needed)
-            bool isBlueText =
-                c.B > c.R + 15 &&
-                c.B > c.G + 15 &&
-                c.B > 80 &&  // Avoid very pale blues
-                c.B < 200;   // Avoid very dark blue backgrounds
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    // Pixel order is usually BGRA
+                    int offset = (y * stride) + (x * 4);
+                    byte b = ptr[offset];
+                    byte g = ptr[offset + 1];
+                    byte r = ptr[offset + 2];
 
-            // Detect white text pixels (fallback)
-            bool isWhiteText =
-                c.R > 220 && c.G > 220 && c.B > 220;
+                    // LOGIC: Detect Backgrounds and turn them WHITE. 
+                    // Everything else (Text) becomes BLACK.
 
-            if (isBlueText || isWhiteText)
-                output.SetPixel(x, y, Color.Black);
-            else
-                output.SetPixel(x, y, Color.White);
+                    // 1. Detect Standard DOS Blue Background (Deep Blue)
+                    // R~0, G~0, B~170
+                    bool isDeepBlueBg = (b > 100) && (r < 80) && (g < 80);
+
+                    // 2. Detect Highlight/Input Box Background (Cyan/Light Blue)
+                    // R~0, G~255, B~255
+                    bool isCyanBg = (b > 180) && (g > 180) && (r < 100);
+
+                    if (isDeepBlueBg || isCyanBg)
+                    {
+                        // Set to White (Background)
+                        outPtr[offset] = 255;     // B
+                        outPtr[offset + 1] = 255; // G
+                        outPtr[offset + 2] = 255; // R
+                        outPtr[offset + 3] = 255; // A
+                    }
+                    else
+                    {
+                        // Set to Black (Text)
+                        outPtr[offset] = 0;
+                        outPtr[offset + 1] = 0;
+                        outPtr[offset + 2] = 0;
+                        outPtr[offset + 3] = 255;
+                    }
+                }
+            }
+        }
+
+        original.UnlockBits(data);
+        temp.UnlockBits(outData);
+
+        // 2. Scale up using Nearest Neighbor (Keeps text sharp, not blurry)
+        using (Graphics g = Graphics.FromImage(scaled))
+        {
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            g.DrawImage(temp, 0, 0, scaled.Width, scaled.Height);
         }
     }
-
-    // Scale 2x (nearest neighbor) for better OCR accuracy
-    Bitmap scaled = new Bitmap(output.Width * 2, output.Height * 2);
-    using (Graphics g = Graphics.FromImage(scaled))
-    {
-        g.Clear(Color.White);
-        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-        g.DrawImage(output, 0, 0, scaled.Width, scaled.Height);
-    }
+    
+    // Set 300 DPI for Tesseract
     scaled.SetResolution(300, 300);
-
     return scaled;
 }
 
