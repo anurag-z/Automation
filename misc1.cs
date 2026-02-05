@@ -94,64 +94,54 @@ class Program
         }
     }
 
-    static Bitmap FilterBlueScreen(Bitmap original)
+   static Bitmap FilterUniversalOCR(Bitmap original)
 {
-    // STEP 1: Pass One - Safe Capture
-    // We create a base layer using a standard threshold.
-    Bitmap baseLayer = new Bitmap(original.Width, original.Height);
-    using (Graphics g = Graphics.FromImage(baseLayer)) 
+    // STEP 1: Process at 1x size to keep character geometry intact
+    Bitmap bold1x = new Bitmap(original.Width, original.Height);
+    
+    using (Graphics g = Graphics.FromImage(bold1x)) 
     { 
-        g.Clear(Color.White); // FORCE WHITE BACKGROUND
+        g.Clear(Color.White); // Critical: Start with 'Paper'
     }
 
-    for (int y = 0; y < original.Height; y++)
+    for (int y = 0; y < original.Height - 1; y++) 
     {
-        for (int x = 0; x < original.Width; x++)
+        for (int x = 0; x < original.Width - 1; x++)
         {
             Color c = original.GetPixel(x, y);
-            // Brightness check
-            int b = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
 
-            // Threshold 45 is the "Sweet Spot" for your DOS screen.
-            if (b > 45) baseLayer.SetPixel(x, y, Color.Black);
-        }
-    }
+            // Luminance thresholding
+            int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
 
-    // STEP 2: Pass Two - Precision Connection
-    // If a pixel is white but has black pixels above AND below it, 
-    // it's a "gap" in a vertical line (common in the number 0). We fill it.
-    Bitmap final1x = new Bitmap(baseLayer);
-    for (int y = 1; y < baseLayer.Height - 1; y++)
-    {
-        for (int x = 1; x < baseLayer.Width - 1; x++)
-        {
-            if (baseLayer.GetPixel(x, y).R == 255) // If White
+            if (brightness > 40) // Captures both Cyan and White text
             {
-                // Check for vertical or horizontal gaps
-                bool verticalGap = (baseLayer.GetPixel(x, y - 1).R == 0 && baseLayer.GetPixel(x, y + 1).R == 0);
-                bool horizontalGap = (baseLayer.GetPixel(x - 1, y).R == 0 && baseLayer.GetPixel(x + 1, y).R == 0);
-
-                if (verticalGap || horizontalGap)
-                {
-                    final1x.SetPixel(x, y, Color.Black);
-                }
+                // Current pixel
+                bold1x.SetPixel(x, y, Color.Black);
+                
+                // UNIVERSAL BOLDING: This repairs horizontal bars in 'E', 'F' 
+                // and vertical loops in '0', '8', and 'S'
+                bold1x.SetPixel(x + 1, y, Color.Black); // Expand Right
+                bold1x.SetPixel(x, y + 1, Color.Black); // Expand Down
             }
         }
     }
 
-    // STEP 3: Professional Scaling (2x)
+    // STEP 2: Professional Scaling (2x Nearest Neighbor)
     int scale = 2;
-    int padding = 20;
-    Bitmap finalBmp = new Bitmap((original.Width * scale) + (padding * 2), (original.Height * scale) + (padding * 2));
+    int pad = 20;
+    Bitmap finalBmp = new Bitmap((original.Width * scale) + (pad * 2), (original.Height * scale) + (pad * 2));
 
     using (Graphics g = Graphics.FromImage(finalBmp))
     {
-        g.Clear(Color.White); // SECOND SAFETY CLEAR
+        g.Clear(Color.White); // Prevent transparency errors
+        
+        // Nearest Neighbor keeps the bolded text sharp for the engine
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-        g.DrawImage(final1x, padding, padding, original.Width * scale, original.Height * scale);
+        
+        g.DrawImage(bold1x, pad, pad, original.Width * scale, original.Height * scale);
     }
-
+    
     return finalBmp;
 }
     static Bitmap CaptureWindow(IntPtr handle)
