@@ -1,20 +1,23 @@
 using System;
 using System.Diagnostics;
-using System.Drawing; // System.Drawing.Common
+using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
-using Tesseract; // Tesseract NuGet
+using Tesseract;
 
 class Program
 {
-    // --- IMPORTS ---
+    // ---------------- WIN32 ----------------
+    [DllImport("user32.dll")]
+    static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, int nFlags);
+
+    [DllImport("user32.dll")]
+    static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
     [DllImport("user32.dll")]
     static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-    
-    [DllImport("user32.dll")]
-    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT { public int Left, Top, Right, Bottom; }
@@ -27,138 +30,139 @@ class Program
     {
         try
         {
-            // 1. LAUNCH
-            ProcessStartInfo processInfo = new ProcessStartInfo();
-            processInfo.FileName = "cmd.exe";
-            processInfo.WorkingDirectory = @"c:\10405";
-            processInfo.Arguments = @"/k fads"; 
-            processInfo.UseShellExecute = true;
+            // 1️⃣ LAUNCH DOS APP
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                WorkingDirectory = @"c:\10405",
+                Arguments = "/k fads",
+                UseShellExecute = true
+            };
 
-            Process p = Process.Start(processInfo);
-            Thread.Sleep(2000); 
+            Process p = Process.Start(psi);
+            p.WaitForInputIdle();
+            Thread.Sleep(1000);
 
+            // Bring to foreground
             Microsoft.VisualBasic.Interaction.AppActivate(p.Id);
             Thread.Sleep(500);
-            
-            Console.WriteLine("Sending F3...");
+
+            // Example key
             PressKey(SC_F3);
-            Thread.Sleep(2000);
+            Thread.Sleep(1000);
 
-            Console.WriteLine("Taking screenshot...");
-            using (Bitmap original = CaptureWindow(p.MainWindowHandle))
+            // 2️⃣ CAPTURE DOS CLIENT AREA ONLY
+            using (Bitmap captured = CaptureDosClient(p.MainWindowHandle))
             {
-                // 2. PROCESS (Using the "Precision" Method)
-                Console.WriteLine("Processing (Precision Mode)...");
-                using (Bitmap processed = FilterPrecision(original))
+                // 3️⃣ FILTER FOR OCR (TUNED FOR YOUR SCREEN)
+                using (Bitmap processed = FilterDosBlueScreen(captured))
                 {
-                    // DEBUG: Save to desktop to VERIFY image is White with Sharp Black text
-                    string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                    string debugPath = Path.Combine(desktop, "debug_precision.png");
+                    // DEBUG: Save image to verify
+                    string debugPath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                        "dos_ocr_debug.png");
+
                     processed.Save(debugPath, ImageFormat.Png);
-                    Console.WriteLine($"Image Saved: {debugPath} <--- OPEN THIS");
+                    Console.WriteLine("Saved OCR image: " + debugPath);
 
-                    // 3. OCR
-                    string tempFile = "temp_ocr.tif";
-                    processed.Save(tempFile, ImageFormat.Tiff);
-
-                    try
+                    // 4️⃣ OCR
+                    using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
                     {
-                        using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
+                        engine.DefaultPageSegMode = PageSegMode.SingleColumn;
+
+                        engine.SetVariable("preserve_interword_spaces", "1");
+                        engine.SetVariable("textord_force_make_prop_words", "F");
+
+                        engine.SetVariable(
+                            "tessedit_char_whitelist",
+                            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-.,() ");
+
+                        using (var pix = PixConverter.ToPix(processed))
+                        using (var page = engine.Process(pix))
                         {
-                            // Whitelist to force clean reading
-                            engine.SetVariable("tessedit_char_whitelist", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ,.-() ");
-                            
-                            using (var img = Pix.LoadFromFile(tempFile)) 
-                            {
-                                // SingleBlock is best for this menu layout
-                                using (var page = engine.Process(img, PageSegMode.SingleBlock))
-                                {
-                                    string text = page.GetText();
-                                    Console.WriteLine("\n--- EXTRACTED TEXT ---");
-                                    Console.WriteLine(text);
-                                    Console.WriteLine("----------------------");
-                                }
-                            }
+                            Console.WriteLine("\n--- OCR OUTPUT ---\n");
+                            Console.WriteLine(page.GetText());
+                            Console.WriteLine("------------------");
                         }
-                    }
-                    finally
-                    {
-                        if (File.Exists(tempFile)) File.Delete(tempFile);
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error: " + ex.Message);
+            Console.WriteLine("ERROR: " + ex.Message);
         }
     }
 
-   static Bitmap FilterUniversalOCR(Bitmap original)
-{
-    // STEP 1: Process at 1x size to keep character geometry intact
-    Bitmap bold1x = new Bitmap(original.Width, original.Height);
-    
-    using (Graphics g = Graphics.FromImage(bold1x)) 
-    { 
-        g.Clear(Color.White); // Critical: Start with 'Paper'
-    }
-
-    for (int y = 0; y < original.Height - 1; y++) 
+    // ---------------- CAPTURE ----------------
+    static Bitmap CaptureDosClient(IntPtr hWnd)
     {
-        for (int x = 0; x < original.Width - 1; x++)
-        {
-            Color c = original.GetPixel(x, y);
+        GetClientRect(hWnd, out RECT rc);
 
-            // Luminance thresholding
-            int brightness = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
-
-            if (brightness > 40) // Captures both Cyan and White text
-            {
-                // Current pixel
-                bold1x.SetPixel(x, y, Color.Black);
-                
-                // UNIVERSAL BOLDING: This repairs horizontal bars in 'E', 'F' 
-                // and vertical loops in '0', '8', and 'S'
-                bold1x.SetPixel(x + 1, y, Color.Black); // Expand Right
-                bold1x.SetPixel(x, y + 1, Color.Black); // Expand Down
-            }
-        }
-    }
-
-    // STEP 2: Professional Scaling (2x Nearest Neighbor)
-    int scale = 2;
-    int pad = 20;
-    Bitmap finalBmp = new Bitmap((original.Width * scale) + (pad * 2), (original.Height * scale) + (pad * 2));
-
-    using (Graphics g = Graphics.FromImage(finalBmp))
-    {
-        g.Clear(Color.White); // Prevent transparency errors
-        
-        // Nearest Neighbor keeps the bolded text sharp for the engine
-        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-        
-        g.DrawImage(bold1x, pad, pad, original.Width * scale, original.Height * scale);
-    }
-    
-    return finalBmp;
-}
-    static Bitmap CaptureWindow(IntPtr handle)
-    {
-        RECT rect;
-        GetWindowRect(handle, out rect);
-        int width = rect.Right - rect.Left;
-        int height = rect.Bottom - rect.Top;
+        int width = rc.Right - rc.Left;
+        int height = rc.Bottom - rc.Top;
 
         Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+
         using (Graphics g = Graphics.FromImage(bmp))
         {
-            g.CopyFromScreen(rect.Left, rect.Top, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
+            IntPtr hdc = g.GetHdc();
+            try
+            {
+                // PW_CLIENTONLY = 1 → no borders/title
+                PrintWindow(hWnd, hdc, 1);
+            }
+            finally
+            {
+                g.ReleaseHdc(hdc);
+            }
         }
+
         return bmp;
     }
 
+    // ---------------- IMAGE FILTER (DOS BLUE UI) ----------------
+    static Bitmap FilterDosBlueScreen(Bitmap original)
+    {
+        Bitmap output = new Bitmap(original.Width, original.Height);
+
+        for (int y = 0; y < original.Height; y++)
+        {
+            for (int x = 0; x < original.Width; x++)
+            {
+                Color c = original.GetPixel(x, y);
+
+                // Dark blue text
+                bool isDarkBlueText =
+                    c.B > c.R + 20 &&
+                    c.B > c.G + 20 &&
+                    c.B < 200;
+
+                // White text
+                bool isWhiteText =
+                    c.R > 220 && c.G > 220 && c.B > 220;
+
+                if (isDarkBlueText || isWhiteText)
+                    output.SetPixel(x, y, Color.Black);
+                else
+                    output.SetPixel(x, y, Color.White);
+            }
+        }
+
+        // Scale 2x (nearest neighbor)
+        Bitmap scaled = new Bitmap(output.Width * 2, output.Height * 2);
+        using (Graphics g = Graphics.FromImage(scaled))
+        {
+            g.Clear(Color.White);
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            g.DrawImage(output, 0, 0, scaled.Width, scaled.Height);
+        }
+
+        scaled.SetResolution(300, 300);
+        return scaled;
+    }
+
+    // ---------------- KEY PRESS ----------------
     static void PressKey(byte scanCode)
     {
         keybd_event(0, scanCode, KEYEVENTF_SCANCODE, UIntPtr.Zero);
