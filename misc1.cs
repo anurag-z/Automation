@@ -27,18 +27,15 @@ class Program
     {
         try
         {
-            // 1. START PROCESS
+            // 1. LAUNCH
             ProcessStartInfo processInfo = new ProcessStartInfo();
             processInfo.FileName = "cmd.exe";
             processInfo.WorkingDirectory = @"c:\10405";
             processInfo.Arguments = @"/k fads"; 
             processInfo.UseShellExecute = true;
 
-            Console.WriteLine("Launching Application...");
             Process p = Process.Start(processInfo);
-            
-            // INCREASED WAIT TIME to ensure window is fully visible
-            Thread.Sleep(3000); 
+            Thread.Sleep(2000); 
 
             Microsoft.VisualBasic.Interaction.AppActivate(p.Id);
             Thread.Sleep(500);
@@ -47,29 +44,20 @@ class Program
             PressKey(SC_F3);
             Thread.Sleep(2000);
 
-            // 2. CAPTURE
             Console.WriteLine("Taking screenshot...");
             using (Bitmap original = CaptureWindow(p.MainWindowHandle))
             {
-                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-
-                // --- DEBUG STEP 1: SAVE RAW IMAGE ---
-                // If this image is BLACK, the capture code is failing (Window hidden/minimized).
-                string rawPath = Path.Combine(desktop, "debug_1_raw.png");
-                original.Save(rawPath, ImageFormat.Png);
-                Console.WriteLine($"[CHECK THIS] Saved Raw Screenshot to: {rawPath}");
-
-                // 3. PROCESS
-                Console.WriteLine("Processing Image...");
-                using (Bitmap processed = FilterSafeMode(original))
+                // 2. PROCESS (Using the "Precision" Method)
+                Console.WriteLine("Processing (Precision Mode)...");
+                using (Bitmap processed = FilterPrecision(original))
                 {
-                    // --- DEBUG STEP 2: SAVE PROCESSED IMAGE ---
-                    // If Raw is good but this is BLACK, the filter is failing.
-                    string procPath = Path.Combine(desktop, "debug_2_processed.png");
-                    processed.Save(procPath, ImageFormat.Png);
-                    Console.WriteLine($"[CHECK THIS] Saved Processed Image to: {procPath}");
+                    // DEBUG: Save to desktop to VERIFY image is White with Sharp Black text
+                    string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                    string debugPath = Path.Combine(desktop, "debug_precision.png");
+                    processed.Save(debugPath, ImageFormat.Png);
+                    Console.WriteLine($"Image Saved: {debugPath} <--- OPEN THIS");
 
-                    // 4. OCR
+                    // 3. OCR
                     string tempFile = "temp_ocr.tif";
                     processed.Save(tempFile, ImageFormat.Tiff);
 
@@ -77,10 +65,12 @@ class Program
                     {
                         using (var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default))
                         {
+                            // Whitelist to force clean reading
                             engine.SetVariable("tessedit_char_whitelist", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ,.-() ");
                             
                             using (var img = Pix.LoadFromFile(tempFile)) 
                             {
+                                // SingleBlock is best for this menu layout
                                 using (var page = engine.Process(img, PageSegMode.SingleBlock))
                                 {
                                     string text = page.GetText();
@@ -100,53 +90,57 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine("CRITICAL ERROR: " + ex.Message);
-            Console.WriteLine("Stack Trace: " + ex.StackTrace);
+            Console.WriteLine("Error: " + ex.Message);
         }
     }
 
-    // --- SAFE MODE FILTER ---
-    // This is the simplest, most fail-safe filter possible.
-    static Bitmap FilterSafeMode(Bitmap original)
+    // --- FINAL TUNED METHOD ---
+    static Bitmap FilterPrecision(Bitmap original)
     {
-        // 1. Initialize with White Background (Prevents Transparent/Black output)
-        Bitmap clean = new Bitmap(original.Width, original.Height);
-        using (Graphics g = Graphics.FromImage(clean)) 
-        {
-            g.Clear(Color.White); 
-        }
+        // 1. Create White Canvas (Re-using the logic that successfully created a white page before)
+        Bitmap clean1x = new Bitmap(original.Width, original.Height);
+        using (Graphics g = Graphics.FromImage(clean1x)) { g.Clear(Color.White); }
 
-        for (int y = 0; y < original.Height; y++) 
+        for (int y = 0; y < original.Height - 1; y++) 
         {
-            for (int x = 0; x < original.Width; x++)
+            for (int x = 0; x < original.Width - 1; x++)
             {
                 Color c = original.GetPixel(x, y);
-                
+
                 // Brightness Logic
                 int b = (int)((c.R * 0.3) + (c.G * 0.59) + (c.B * 0.11));
 
-                // Threshold 50
-                // IF Brightness > 50 (Text), DRAW BLACK.
-                // IF Brightness < 50 (Background), DO NOTHING (It stays White).
-                if (b > 50) 
+                // THRESHOLD 35 (The Magic Number)
+                // - Background is ~20 (Ignored)
+                // - Faint Edges are ~40-60 (CAPTURED!) -> This closes the "0" gap.
+                // - Solid Text is ~150+ (CAPTURED!)
+                if (b > 35) 
                 {
-                    clean.SetPixel(x, y, Color.Black);
+                    // DRAW 1 PIXEL ONLY
+                    // We do NOT bold it. We rely on the low threshold to find the 
+                    // natural thickness of the letter.
+                    clean1x.SetPixel(x, y, Color.Black);
                 }
             }
         }
 
-        // 2. Scale Up 2x (Simple scale, no filtering)
+        // 2. Scale Up 2x (Standard OCR Size)
         int scale = 2;
+        int padding = 20;
         int w = original.Width * scale;
         int h = original.Height * scale;
-        Bitmap finalBmp = new Bitmap(w, h);
+
+        Bitmap finalBmp = new Bitmap(w + (padding * 2), h + (padding * 2));
 
         using (Graphics g = Graphics.FromImage(finalBmp))
         {
-            g.Clear(Color.White);
+            g.Clear(Color.White); // Double-check safety clear
+            
+            // Nearest Neighbor keeps the pixels exact (no blur)
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            g.DrawImage(clean, 0, 0, w, h);
+            
+            g.DrawImage(clean1x, padding, padding, w, h);
         }
         
         return finalBmp;
@@ -156,16 +150,8 @@ class Program
     {
         RECT rect;
         GetWindowRect(handle, out rect);
-
         int width = rect.Right - rect.Left;
         int height = rect.Bottom - rect.Top;
-
-        Console.WriteLine($"Window Detected Size: {width}x{height} (X:{rect.Left} Y:{rect.Top})");
-
-        if (width <= 0 || height <= 0)
-        {
-            throw new Exception("Window size is 0x0! The window might be minimized or invalid.");
-        }
 
         Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
         using (Graphics g = Graphics.FromImage(bmp))
