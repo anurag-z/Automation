@@ -28,64 +28,56 @@ public static class UltimateOcr
     /// Captures the DOS window, isolates the bottom line, and performs OCR.
     /// </summary>
     public static string CaptureAndRead(IntPtr hWnd, string debugDir)
+{
+    // 1. GET THE FULL CONTENT AREA
+    GetClientRect(hWnd, out RECT clientRect);
+    POINT topLeft = new POINT { X = 0, Y = 0 };
+    ClientToScreen(hWnd, ref topLeft);
+
+    int width = clientRect.Right - clientRect.Left;
+    int height = clientRect.Bottom - clientRect.Top;
+
+    using (Bitmap fullContent = new Bitmap(width, height))
     {
-        Directory.CreateDirectory(debugDir);
-
-        // 1. GET ACCURATE COORDINATES (Content area only)
-        GetClientRect(hWnd, out RECT clientRect);
-        POINT topLeft = new POINT { X = 0, Y = 0 };
-        ClientToScreen(hWnd, ref topLeft);
-
-        int width = clientRect.Right - clientRect.Left;
-        int height = clientRect.Bottom - clientRect.Top;
-
-        if (width <= 0 || height <= 0) return "ERROR_INVALID_WINDOW_SIZE";
-
-        using (Bitmap fullContent = new Bitmap(width, height))
+        using (Graphics g = Graphics.FromImage(fullContent))
         {
-            // 2. CAPTURE THE SCREEN
-            using (Graphics g = Graphics.FromImage(fullContent))
+            g.CopyFromScreen(topLeft.X, topLeft.Y, 0, 0, new Size(width, height));
+        }
+
+        // 2. FIND THE WHITE BORDER LINE
+        // We scan from the bottom upwards to find the first solid line of light pixels
+        int whiteLineY = -1;
+        for (int y = height - 1; y > height / 2; y--) // Scan bottom half only
+        {
+            Color pixel = fullContent.GetPixel(width / 2, y); // Check the middle of the row
+            // If the pixel is very bright (White/Cyan border), we found our line
+            if (pixel.GetBrightness() > 0.8f) 
             {
-                g.CopyFromScreen(topLeft.X, topLeft.Y, 0, 0, new Size(width, height));
-            }
-            fullContent.Save(Path.Combine(debugDir, "0_Content_Area_Only.png"));
-
-            // 3. ISOLATE THE BOTTOM STRIP 
-            // We take a slightly larger strip (60px) and offset it from the absolute bottom
-            int stripHeight = 60; 
-            int bottomGap = 5; 
-            Rectangle cropRegion = new Rectangle(0, height - stripHeight - bottomGap, width, stripHeight);
-
-            using (Bitmap rawCrop = fullContent.Clone(cropRegion, fullContent.PixelFormat))
-            {
-                rawCrop.Save(Path.Combine(debugDir, "1_Bottom_Crop_Raw.png"));
-
-                // 4. MULTI-PASS OCR GRADING
-                float[] gradingLevels = { 0.35f, 0.45f, 0.55f };
-                string bestResult = "";
-
-                foreach (float level in gradingLevels)
-                {
-                    using (Bitmap processed = PreProcessImage(rawCrop, level))
-                    {
-                        string fileName = $"2_Processed_Level_{level.ToString("0.00")}.png";
-                        processed.Save(Path.Combine(debugDir, fileName));
-
-                        string currentText = RunEngine(processed);
-
-                        // If we see typical DOS status indicators, return immediately
-                        if (currentText.Contains("=") || currentText.Contains(":") || currentText.Length > 10)
-                        {
-                            return currentText;
-                        }
-
-                        if (currentText.Length > bestResult.Length) bestResult = currentText;
-                    }
-                }
-                return bestResult;
+                whiteLineY = y;
+                break;
             }
         }
+
+        // 3. DEFINE THE CROP BASED ON THE BORDER
+        // If we found the line, we start 2 pixels BELOW it. 
+        // If not found, we fallback to the bottom 40 pixels.
+        int startY = (whiteLineY != -1) ? whiteLineY + 2 : height - 40;
+        int captureHeight = (whiteLineY != -1) ? (height - startY) : 35;
+
+        // Safety check to ensure we don't crop outside the image
+        if (startY + captureHeight > height) captureHeight = height - startY;
+
+        Rectangle region = new Rectangle(0, startY, width, captureHeight);
+
+        using (Bitmap rawCrop = fullContent.Clone(region, fullContent.PixelFormat))
+        {
+            rawCrop.Save(Path.Combine(debugDir, "1_Target_Below_Border.png"));
+
+            // 4. MULTI-PASS OCR (Same as before)
+            return RunCalibrationPasses(rawCrop, debugDir);
+        }
     }
+}
 
     private static Bitmap PreProcessImage(Bitmap source, float threshold)
     {
