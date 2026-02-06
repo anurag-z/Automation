@@ -137,25 +137,38 @@ public static class UltimateOcr
     }
 
     private static string RunEngine(Bitmap img)
+{
+    try
     {
-        try
+        // 1. Convert Bitmap to a format Tesseract 5.0 loves (32bpp Argb)
+        // and save to memory to "normalize" the DPI.
+        using (MemoryStream ms = new MemoryStream())
         {
+            img.Save(ms, ImageFormat.Png);
+            ms.Position = 0;
+
             using (var engine = new TesseractEngine(TESS_DATA, LANGUAGE, EngineMode.LstmOnly))
             {
-                // PSM 7 = Single Line. PSM 6 = Single Uniform Block.
-                // For "dotted" text, PSM 6 is sometimes more stable.
+                // 2. These settings mirror the standalone Tesseract command line
+                engine.SetVariable("user_defined_dpi", "300");
                 engine.DefaultPageSegMode = PageSegMode.SingleLine;
-                
-                // Keep the whitelist strictly to DOS navigation characters
                 engine.SetVariable("tessedit_char_whitelist", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.:= ");
 
-                using (var pix = PixConverter.ToPix(img))
-                using (var page = engine.Process(pix))
+                // 3. Load from the "File-Like" stream
+                using (var pix = Pix.LoadFromMemory(ms.ToArray()))
                 {
-                    return page.GetText().Trim();
+                    using (var page = engine.Process(pix))
+                    {
+                        string result = page.GetText().Trim();
+                        return result;
+                    }
                 }
             }
         }
-        catch { return ""; }
     }
+    catch (Exception ex)
+    {
+        return $"ERROR: {ex.Message}";
+    }
+}
 }
