@@ -8,112 +8,102 @@ using Tesseract.Drawing;
 
 public static class UltimateOcr
 {
-    // =========================================================
-    // 1. WIN32 IMPORTS (For finding and capturing the window)
-    // =========================================================
+    // --- WIN32 API FOR COORDINATES ---
     [DllImport("user32.dll")]
-    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int Left, Top, Right, Bottom; }
+    public struct RECT { public int Left, Top, Right, Bottom; }
 
-    private const string TESS_DATA = @"./tessdata"; // Path to your tessdata folder
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int X; public int Y; }
+
+    private const string TESS_DATA = @"./tessdata";
     private const string LANGUAGE = "eng";
 
-    // =========================================================
-    // 2. MAIN PUBLIC METHOD: CAPTURE & READ
-    // =========================================================
-    
     /// <summary>
-    /// Captures the window, isolates the bottom line, and reads it using multi-pass grading.
+    /// Captures the DOS window, isolates the bottom line, and performs OCR.
     /// </summary>
     public static string CaptureAndRead(IntPtr hWnd, string debugDir)
-{
-    // STEP 1: CAPTURE FULL WINDOW
-    using (Bitmap fullScreen = CaptureWindow(hWnd))
     {
-        if (fullScreen == null) return "ERROR_CAPTURE_FAILED";
+        Directory.CreateDirectory(debugDir);
 
-        // *** DEBUG: Save the raw full window to verify coordinates ***
-        fullScreen.Save(Path.Combine(debugDir, "0_Full_Window_Raw.png"));
+        // 1. GET ACCURATE COORDINATES (Content area only)
+        GetClientRect(hWnd, out RECT clientRect);
+        POINT topLeft = new POINT { X = 0, Y = 0 };
+        ClientToScreen(hWnd, ref topLeft);
 
-        // STEP 2: ISOLATE BOTTOM LINE (Approx 35 pixels)
-        int cropHeight = 35;
-        Rectangle region = new Rectangle(0, fullScreen.Height - cropHeight, fullScreen.Width, cropHeight);
+        int width = clientRect.Right - clientRect.Left;
+        int height = clientRect.Bottom - clientRect.Top;
 
-        using (Bitmap rawCrop = fullScreen.Clone(region, fullScreen.PixelFormat))
+        if (width <= 0 || height <= 0) return "ERROR_INVALID_WINDOW_SIZE";
+
+        using (Bitmap fullContent = new Bitmap(width, height))
         {
-            // *** DEBUG: Save the raw crop to verify we hit the status bar ***
-            rawCrop.Save(Path.Combine(debugDir, "1_Bottom_Crop_Raw.png"));
-
-            // STEP 3: CALIBRATION LOOP (Try 3 grading levels)
-            // Note: We use the Dynamic Logic I gave you previously
-            float[] gradingLevels = { 0.45f, 0.35f, 0.55f };
-            string bestResult = "";
-
-            foreach (float level in gradingLevels)
+            // 2. CAPTURE THE SCREEN
+            using (Graphics g = Graphics.FromImage(fullContent))
             {
-                using (Bitmap processed = PreProcessImage(rawCrop, level))
-                {
-                    // Save processed debug image
-                    string fileName = $"2_Processed_Level_{level.ToString("0.00")}.png";
-                    processed.Save(Path.Combine(debugDir, fileName));
-
-                    // STEP 4: RUN TESSERACT
-                    string currentText = RunEngine(processed);
-
-                    if (currentText.Contains("=") || currentText.Length > 8)
-                    {
-                        return currentText; 
-                    }
-                    if (currentText.Length > bestResult.Length) bestResult = currentText;
-                }
+                g.CopyFromScreen(topLeft.X, topLeft.Y, 0, 0, new Size(width, height));
             }
-            return bestResult;
+            fullContent.Save(Path.Combine(debugDir, "0_Content_Area_Only.png"));
+
+            // 3. ISOLATE THE BOTTOM STRIP 
+            // We take a slightly larger strip (60px) and offset it from the absolute bottom
+            int stripHeight = 60; 
+            int bottomGap = 5; 
+            Rectangle cropRegion = new Rectangle(0, height - stripHeight - bottomGap, width, stripHeight);
+
+            using (Bitmap rawCrop = fullContent.Clone(cropRegion, fullContent.PixelFormat))
+            {
+                rawCrop.Save(Path.Combine(debugDir, "1_Bottom_Crop_Raw.png"));
+
+                // 4. MULTI-PASS OCR GRADING
+                float[] gradingLevels = { 0.35f, 0.45f, 0.55f };
+                string bestResult = "";
+
+                foreach (float level in gradingLevels)
+                {
+                    using (Bitmap processed = PreProcessImage(rawCrop, level))
+                    {
+                        string fileName = $"2_Processed_Level_{level.ToString("0.00")}.png";
+                        processed.Save(Path.Combine(debugDir, fileName));
+
+                        string currentText = RunEngine(processed);
+
+                        // If we see typical DOS status indicators, return immediately
+                        if (currentText.Contains("=") || currentText.Contains(":") || currentText.Length > 10)
+                        {
+                            return currentText;
+                        }
+
+                        if (currentText.Length > bestResult.Length) bestResult = currentText;
+                    }
+                }
+                return bestResult;
+            }
         }
-    }
-}
-
-    // =========================================================
-    // 3. PRIVATE HELPER METHODS
-    // =========================================================
-
-    private static Bitmap CaptureWindow(IntPtr hWnd)
-    {
-        GetWindowRect(hWnd, out RECT rect);
-        int width = rect.Right - rect.Left;
-        int height = rect.Bottom - rect.Top;
-
-        if (width <= 0 || height <= 0) return null;
-
-        Bitmap bmp = new Bitmap(width, height);
-        using (Graphics g = Graphics.FromImage(bmp))
-        {
-            // CopyFromScreen is best for VDI as it captures "what you see"
-            g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new Size(width, height));
-        }
-        return bmp;
     }
 
     private static Bitmap PreProcessImage(Bitmap source, float threshold)
     {
-        // UPSCALE 3x (NearestNeighbor for sharp pixels)
-        int factor = 3;
-        Bitmap res = new Bitmap(source.Width * factor, source.Height * factor);
-        
+        // UPSCALE 3x (Crucial for Tesseract to see DOS pixel fonts correctly)
+        Bitmap res = new Bitmap(source.Width * 3, source.Height * 3);
         using (Graphics g = Graphics.FromImage(res))
         {
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.DrawImage(source, 0, 0, res.Width, res.Height);
         }
 
-        // GRADE (Luminance Threshold)
+        // BINARIZATION (Grading)
         for (int y = 0; y < res.Height; y++)
         {
             for (int x = 0; x < res.Width; x++)
             {
                 Color c = res.GetPixel(x, y);
-                // DOS Text is Bright (White/Cyan) vs Dark Blue BG
+                // DOS text is usually brighter than the background
                 if (c.GetBrightness() > threshold)
                     res.SetPixel(x, y, Color.Black); // Text
                 else
@@ -129,8 +119,8 @@ public static class UltimateOcr
         {
             using (var engine = new TesseractEngine(TESS_DATA, LANGUAGE, EngineMode.LstmOnly))
             {
+                // Single line mode is most accurate for status bars
                 engine.DefaultPageSegMode = PageSegMode.SingleLine;
-                // Strict whitelist to reduce "CO" noise
                 engine.SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.:= ");
 
                 using (var pix = PixConverter.ToPix(img))
@@ -140,9 +130,6 @@ public static class UltimateOcr
                 }
             }
         }
-        catch (Exception ex)
-        {
-            return $"ERR: {ex.Message}";
-        }
+        catch { return ""; }
     }
 }
