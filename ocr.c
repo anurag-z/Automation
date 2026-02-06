@@ -2,57 +2,98 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
 using Tesseract;
-using Tesseract.Drawing; // Required for PixConverter.ToPix()
+using Tesseract.Drawing; 
 
 public static class UltimateOcr
 {
-    private const string TESS_DATA = @"./tessdata";
+    // =========================================================
+    // 1. WIN32 IMPORTS (For finding and capturing the window)
+    // =========================================================
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    private const string TESS_DATA = @"./tessdata"; // Path to your tessdata folder
     private const string LANGUAGE = "eng";
 
+    // =========================================================
+    // 2. MAIN PUBLIC METHOD: CAPTURE & READ
+    // =========================================================
+    
     /// <summary>
-    /// Captures the bottom line of the screen and attempts multiple 
-    /// brightness "grading" passes to find the text.
+    /// Captures the window, isolates the bottom line, and reads it using multi-pass grading.
     /// </summary>
-    public static string ReadBottomLine(Bitmap fullScreen, string debugDir)
+    public static string CaptureAndRead(IntPtr hWnd, string debugDir)
     {
-        // 1. ISOLATE: Define the bottom status bar area (approx 35 pixels)
-        int cropHeight = 35;
-        Rectangle region = new Rectangle(0, fullScreen.Height - cropHeight, fullScreen.Width, cropHeight);
-
-        using (Bitmap rawCrop = fullScreen.Clone(region, fullScreen.PixelFormat))
+        // STEP 1: CAPTURE
+        using (Bitmap fullScreen = CaptureWindow(hWnd))
         {
-            // 2. CALIBRATION: Try 3 different "Grading" thresholds to handle VDI color shifts
-            float[] gradingLevels = { 0.45f, 0.35f, 0.55f };
-            string bestResult = "";
+            if (fullScreen == null) return "ERROR_CAPTURE_FAILED";
 
-            foreach (float level in gradingLevels)
+            // STEP 2: ISOLATE BOTTOM LINE (Approx 35 pixels)
+            int cropHeight = 35;
+            Rectangle region = new Rectangle(0, fullScreen.Height - cropHeight, fullScreen.Width, cropHeight);
+
+            using (Bitmap rawCrop = fullScreen.Clone(region, fullScreen.PixelFormat))
             {
-                using (Bitmap processed = PreProcessImage(rawCrop, level))
+                // STEP 3: CALIBRATION LOOP (Try 3 grading levels)
+                float[] gradingLevels = { 0.45f, 0.35f, 0.55f };
+                string bestResult = "";
+
+                foreach (float level in gradingLevels)
                 {
-                    // Save images for visual debugging
-                    string fileName = $"debug_level_{level.ToString("0.00")}.png";
-                    processed.Save(Path.Combine(debugDir, fileName));
-
-                    string currentText = RunEngine(processed);
-
-                    // 3. VALIDATION: Check if we found a key character like '=' or a screen digit
-                    if (currentText.Contains("=") || currentText.Length > 8)
+                    using (Bitmap processed = PreProcessImage(rawCrop, level))
                     {
-                        return currentText; // We found a valid line!
+                        // Save debug image
+                        string fileName = $"debug_level_{level.ToString("0.00")}.png";
+                        processed.Save(Path.Combine(debugDir, fileName));
+
+                        // STEP 4: RUN TESSERACT
+                        string currentText = RunEngine(processed);
+
+                        // Validation: If we found a known marker, stop immediately.
+                        if (currentText.Contains("=") || currentText.Length > 8)
+                        {
+                            return currentText; 
+                        }
+                        
+                        // Keep the longest result just in case
+                        if (currentText.Length > bestResult.Length) bestResult = currentText;
                     }
-                    
-                    // Fallback to the longest string found if no '=' is present
-                    if (currentText.Length > bestResult.Length) bestResult = currentText;
                 }
+                return bestResult;
             }
-            return bestResult;
         }
+    }
+
+    // =========================================================
+    // 3. PRIVATE HELPER METHODS
+    // =========================================================
+
+    private static Bitmap CaptureWindow(IntPtr hWnd)
+    {
+        GetWindowRect(hWnd, out RECT rect);
+        int width = rect.Right - rect.Left;
+        int height = rect.Bottom - rect.Top;
+
+        if (width <= 0 || height <= 0) return null;
+
+        Bitmap bmp = new Bitmap(width, height);
+        using (Graphics g = Graphics.FromImage(bmp))
+        {
+            // CopyFromScreen is best for VDI as it captures "what you see"
+            g.CopyFromScreen(rect.Left, rect.Top, 0, 0, new Size(width, height));
+        }
+        return bmp;
     }
 
     private static Bitmap PreProcessImage(Bitmap source, float threshold)
     {
-        // UPSCALE: 3x increase using NearestNeighbor to keep legacy DOS fonts sharp
+        // UPSCALE 3x (NearestNeighbor for sharp pixels)
         int factor = 3;
         Bitmap res = new Bitmap(source.Width * factor, source.Height * factor);
         
@@ -62,18 +103,17 @@ public static class UltimateOcr
             g.DrawImage(source, 0, 0, res.Width, res.Height);
         }
 
-        // GRADING: Convert to high-contrast Black & White
+        // GRADE (Luminance Threshold)
         for (int y = 0; y < res.Height; y++)
         {
             for (int x = 0; x < res.Width; x++)
             {
                 Color c = res.GetPixel(x, y);
-                // Text in DOS is usually Cyan/White (Bright)
-                // Background is usually Blue (Dark)
+                // DOS Text is Bright (White/Cyan) vs Dark Blue BG
                 if (c.GetBrightness() > threshold)
-                    res.SetPixel(x, y, Color.Black); // Text -> Black
+                    res.SetPixel(x, y, Color.Black); // Text
                 else
-                    res.SetPixel(x, y, Color.White); // Background -> White
+                    res.SetPixel(x, y, Color.White); // Background
             }
         }
         return res;
@@ -85,10 +125,8 @@ public static class UltimateOcr
         {
             using (var engine = new TesseractEngine(TESS_DATA, LANGUAGE, EngineMode.LstmOnly))
             {
-                // PSM 7: Treats the image as a single horizontal line (Status bar mode)
                 engine.DefaultPageSegMode = PageSegMode.SingleLine;
-                
-                // Whitelist: Stops Tesseract from guessing random "noise" symbols
+                // Strict whitelist to reduce "CO" noise
                 engine.SetVariable("tessedit_char_whitelist", "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.:= ");
 
                 using (var pix = PixConverter.ToPix(img))
