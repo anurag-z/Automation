@@ -28,47 +28,51 @@ public static class UltimateOcr
     /// Captures the window, isolates the bottom line, and reads it using multi-pass grading.
     /// </summary>
     public static string CaptureAndRead(IntPtr hWnd, string debugDir)
+{
+    // STEP 1: CAPTURE FULL WINDOW
+    using (Bitmap fullScreen = CaptureWindow(hWnd))
     {
-        // STEP 1: CAPTURE
-        using (Bitmap fullScreen = CaptureWindow(hWnd))
+        if (fullScreen == null) return "ERROR_CAPTURE_FAILED";
+
+        // *** DEBUG: Save the raw full window to verify coordinates ***
+        fullScreen.Save(Path.Combine(debugDir, "0_Full_Window_Raw.png"));
+
+        // STEP 2: ISOLATE BOTTOM LINE (Approx 35 pixels)
+        int cropHeight = 35;
+        Rectangle region = new Rectangle(0, fullScreen.Height - cropHeight, fullScreen.Width, cropHeight);
+
+        using (Bitmap rawCrop = fullScreen.Clone(region, fullScreen.PixelFormat))
         {
-            if (fullScreen == null) return "ERROR_CAPTURE_FAILED";
+            // *** DEBUG: Save the raw crop to verify we hit the status bar ***
+            rawCrop.Save(Path.Combine(debugDir, "1_Bottom_Crop_Raw.png"));
 
-            // STEP 2: ISOLATE BOTTOM LINE (Approx 35 pixels)
-            int cropHeight = 35;
-            Rectangle region = new Rectangle(0, fullScreen.Height - cropHeight, fullScreen.Width, cropHeight);
+            // STEP 3: CALIBRATION LOOP (Try 3 grading levels)
+            // Note: We use the Dynamic Logic I gave you previously
+            float[] gradingLevels = { 0.45f, 0.35f, 0.55f };
+            string bestResult = "";
 
-            using (Bitmap rawCrop = fullScreen.Clone(region, fullScreen.PixelFormat))
+            foreach (float level in gradingLevels)
             {
-                // STEP 3: CALIBRATION LOOP (Try 3 grading levels)
-                float[] gradingLevels = { 0.45f, 0.35f, 0.55f };
-                string bestResult = "";
-
-                foreach (float level in gradingLevels)
+                using (Bitmap processed = PreProcessImage(rawCrop, level))
                 {
-                    using (Bitmap processed = PreProcessImage(rawCrop, level))
+                    // Save processed debug image
+                    string fileName = $"2_Processed_Level_{level.ToString("0.00")}.png";
+                    processed.Save(Path.Combine(debugDir, fileName));
+
+                    // STEP 4: RUN TESSERACT
+                    string currentText = RunEngine(processed);
+
+                    if (currentText.Contains("=") || currentText.Length > 8)
                     {
-                        // Save debug image
-                        string fileName = $"debug_level_{level.ToString("0.00")}.png";
-                        processed.Save(Path.Combine(debugDir, fileName));
-
-                        // STEP 4: RUN TESSERACT
-                        string currentText = RunEngine(processed);
-
-                        // Validation: If we found a known marker, stop immediately.
-                        if (currentText.Contains("=") || currentText.Length > 8)
-                        {
-                            return currentText; 
-                        }
-                        
-                        // Keep the longest result just in case
-                        if (currentText.Length > bestResult.Length) bestResult = currentText;
+                        return currentText; 
                     }
+                    if (currentText.Length > bestResult.Length) bestResult = currentText;
                 }
-                return bestResult;
             }
+            return bestResult;
         }
     }
+}
 
     // =========================================================
     // 3. PRIVATE HELPER METHODS
