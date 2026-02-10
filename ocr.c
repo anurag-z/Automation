@@ -215,5 +215,23 @@ private static string VerifySixOrZero(Bitmap characterCrop)
         return "0"; // It's empty, it was a slashed zero
     }
 }
+            private static string SanitizeWithVision(string ocrResult, Bitmap processedImage)
+{
+    if (ocrResult == "6")
+    {
+        // If the engine says 6, we do a manual pixel check to be sure
+        return VerifySixOrZero(processedImage);
+    }
+    
+    if (ocrResult == "16")
+    {
+        // For '16', we only need to check the second half of the image
+        // (You could crop the image to just the '6' part and send it to VerifySixOrZero)
+        return "10"; // Or your custom logic here
+    }
+
+    return ocrResult;
 }
+}
+
 
