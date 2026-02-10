@@ -93,48 +93,58 @@ public static class UltimateOcr
     }
 
     private static Bitmap PreProcessImage(Bitmap source, float threshold)
+{
+    // 1. UPSCALE 4x
+    // Larger images allow the erosion logic to be more precise.
+    Bitmap res = new Bitmap(source.Width * 4, source.Height * 4);
+    using (Graphics g = Graphics.FromImage(res))
     {
-        // STEP A: UPSCALE (4x makes the dots larger so they're easier to fuse)
-        Bitmap res = new Bitmap(source.Width * 4, source.Height * 4);
-        using (Graphics g = Graphics.FromImage(res))
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        g.DrawImage(source, 0, 0, res.Width, res.Height);
+    }
+
+    // 2. CREATE A BITMAP MATRIX (Based on your 0.50f threshold)
+    bool[,] matrix = new bool[res.Width, res.Height];
+    for (int y = 0; y < res.Height; y++)
+    {
+        for (int x = 0; x < res.Width; x++)
         {
-            // NearestNeighbor keeps the edges sharp while we upscale
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.DrawImage(source, 0, 0, res.Width, res.Height);
+            Color c = res.GetPixel(x, y);
+            // Current working logic: threshold = 0.50f
+            matrix[x, y] = (c.G > 115) || (c.GetBrightness() > threshold);
         }
+    }
 
-        // STEP B: DOT FUSION (Morphological Dilation)
-        // We look at each pixel and its neighbors. If enough neighbors are "text colored", 
-        // we fill in the gaps between the dots.
-        Bitmap fused = new Bitmap(res.Width, res.Height);
-        for (int y = 1; y < res.Height - 1; y++)
+    // 3. APPLY EROSION (The "Zero Fix")
+    // We check the 4 immediate neighbors (Up, Down, Left, Right).
+    for (int y = 1; y < res.Height - 1; y++)
+    {
+        for (int x = 1; x < res.Width - 1; x++)
         {
-            for (int x = 1; x < res.Width - 1; x++)
+            if (matrix[x, y]) // If it's a "Black" (text) pixel
             {
-                Color c = res.GetPixel(x, y);
-                // DOS Blue fix: Cyan text has high Green.
-                bool isText = (c.G > 110) || (c.GetBrightness() > threshold);
+                int neighbors = 0;
+                if (matrix[x - 1, y]) neighbors++;
+                if (matrix[x + 1, y]) neighbors++;
+                if (matrix[x, y - 1]) neighbors++;
+                if (matrix[x, y + 1]) neighbors++;
 
-                if (isText)
-                {
-                    fused.SetPixel(x, y, Color.Black);
-                }
+                // A pixel in a thick line (like the wall of a 0) has 3-4 neighbors.
+                // A pixel in a thin diagonal dash usually only has 2.
+                // By removing pixels with < 3 neighbors, we break the dash.
+                if (neighbors < 3) 
+                    res.SetPixel(x, y, Color.White); // Erase noise/dash
                 else
-                {
-                    // If a "background" pixel is surrounded by text pixels, fuse it!
-                    int textNeighbors = 0;
-                    if (res.GetPixel(x + 1, y).G > 110) textNeighbors++;
-                    if (res.GetPixel(x - 1, y).G > 110) textNeighbors++;
-                    if (res.GetPixel(x, y + 1).G > 110) textNeighbors++;
-                    if (res.GetPixel(x, y - 1).G > 110) textNeighbors++;
-
-                    fused.SetPixel(x, y, (textNeighbors >= 2) ? Color.Black : Color.White);
-                }
+                    res.SetPixel(x, y, Color.Black); // Keep solid text
+            }
+            else
+            {
+                res.SetPixel(x, y, Color.White);
             }
         }
-        res.Dispose();
-        return fused;
     }
+    return res;
+}
 
     private static string RunEngine(Bitmap img)
 {
@@ -171,4 +181,5 @@ public static class UltimateOcr
         return $"ERROR: {ex.Message}";
     }
 }
+
 }
