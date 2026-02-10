@@ -181,5 +181,39 @@ public static class UltimateOcr
         return $"ERROR: {ex.Message}";
     }
 }
+private static string VerifySixOrZero(Bitmap characterCrop)
+{
+    // 1. Zoom into the top-left corner of the character (where the 6 has a 'hook')
+    // We look at the top 30% and the left 30%
+    int checkWidth = (int)(characterCrop.Width * 0.3);
+    int checkHeight = (int)(characterCrop.Height * 0.3);
+    
+    int blackPixels = 0;
 
+    for (int y = 0; y < checkHeight; y++)
+    {
+        for (int x = 0; x < checkWidth; x++)
+        {
+            // If the pixel is black (Text)
+            if (characterCrop.GetPixel(x, y).GetBrightness() < 0.5f)
+            {
+                blackPixels++;
+            }
+        }
+    }
+
+    // 2. LOGIC:
+    // A '6' has a solid top-left hook -> Many black pixels.
+    // A '0' is a curve/circle -> The very top-left corner is usually empty (White).
+    // Adjust '5' based on your upscale factor.
+    if (blackPixels > 5) 
+    {
+        return "6"; // It has a hook, it's a real 6
+    }
+    else 
+    {
+        return "0"; // It's empty, it was a slashed zero
+    }
 }
+}
+
