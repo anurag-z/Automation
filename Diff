@@ -1,72 +1,70 @@
 using System;
-using System.Data;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using ExcelDataReader;
 
-public class ExcelDiffChecker
+public class ExcelStreamer
 {
     public static void Main(string[] args)
     {
-        // Replace with your actual file paths
+        // Works for .xlsx, .xls, and .csv
         string pathA = "FileA.xlsx";
         string pathB = "FileB.xlsx";
 
-        try 
-        {
-            DataTable differences = GetMismatchedRowsFromB(pathA, pathB);
-            
-            Console.WriteLine($"Comparison Complete. Found {differences.Rows.Count} rows in File B that differ from File A.");
-            
-            foreach (DataRow row in differences.Rows)
-            {
-                Console.WriteLine(string.Join(" | ", row.ItemArray));
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
+        CompareLargeFiles(pathA, pathB);
     }
 
-    public static DataTable GetMismatchedRowsFromB(string pathA, string pathB)
+    public static void CompareLargeFiles(string pathA, string pathB)
     {
-        // Essential for .NET Core/6+ to support Excel encoding
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
         using var streamA = File.Open(pathA, FileMode.Open, FileAccess.Read);
         using var streamB = File.Open(pathB, FileMode.Open, FileAccess.Read);
-        
-        using var readerA = ExcelReaderFactory.CreateReader(streamA);
-        using var readerB = ExcelReaderFactory.CreateReader(streamB);
 
-        // Configure to treat the first row as headers
-        var conf = new ExcelDataSetConfiguration { 
-            ConfigureDataTable = _ => new ExcelDataTableConfiguration { UseHeaderRow = true } 
-        };
+        using var readerA = GetReader(pathA, streamA);
+        using var readerB = GetReader(pathB, streamB);
 
-        DataTable dtA = readerA.AsDataSet(conf).Tables[0];
-        DataTable dtB = readerB.AsDataSet(conf).Tables[0];
+        int rowCount = 0;
+        int diffCount = 0;
 
-        // Prepare the result table with the same structure as B
-        DataTable diffTable = dtB.Clone();
+        // Move past headers if necessary
+        readerA.Read(); 
+        readerB.Read();
 
-        // Iterate through rows (based on the smaller count to avoid OutOfBounds)
-        int maxRows = Math.Min(dtA.Rows.Count, dtB.Rows.Count);
-
-        for (int i = 0; i < maxRows; i++)
+        // Read both files simultaneously row-by-row
+        while (readerA.Read() && readerB.Read())
         {
-            object[] rowA = dtA.Rows[i].ItemArray;
-            object[] rowB = dtB.Rows[i].ItemArray;
+            rowCount++;
+            
+            // Get the field values for the current row
+            var valuesA = GetRowValues(readerA);
+            var valuesB = GetRowValues(readerB);
 
-            // SequenceEqual compares each object in the array
-            if (!rowA.SequenceEqual(rowB))
+            if (!valuesA.SequenceEqual(valuesB))
             {
-                diffTable.ImportRow(dtB.Rows[i]);
+                diffCount++;
+                Console.WriteLine($"Difference found at row {rowCount}:");
+                Console.WriteLine($"File B Row: {string.Join(" | ", valuesB)}");
+                Console.WriteLine("-------------------------------------------");
             }
         }
 
-        return diffTable;
+        Console.WriteLine($"Finished. Checked {rowCount} rows. Found {diffCount} differences.");
+    }
+
+    private static IExcelDataReader GetReader(string path, Stream stream)
+    {
+        return path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) 
+            ? ExcelReaderFactory.CreateCsvReader(stream) 
+            : ExcelReaderFactory.CreateReader(stream);
+    }
+
+    private static object[] GetRowValues(IExcelDataReader reader)
+    {
+        object[] values = new object[reader.FieldCount];
+        reader.GetValues(values);
+        return values;
     }
 }
