@@ -1,0 +1,23 @@
+$dllPath = "C:\Current_FADS_Utilities\ctree.dll"  # <--- Verify this path matches your folder!
+
+Write-Host "Scanning $dllPath for function names..."
+$bytes = Get-Content $dllPath -Encoding Byte -ReadCount 0
+
+# Convert all bytes to ASCII characters, replacing binary with spaces
+$chars = $bytes | ForEach-Object { 
+    if ($_ -ge 33 -and $_ -le 126) { [char]$_ } else { " " } 
+}
+$text = -join $chars
+
+# Look for common C-Tree function patterns
+$results = $text | Select-String -Pattern "\b(InitISAM|INTISAM|ct_init|OpenIFile|OPNIFIL)\b" -AllMatches
+
+if ($results.Matches.Count -gt 0) {
+    Write-Host "`n[SUCCESS] Found these potential function names:" -ForegroundColor Green
+    $results.Matches | ForEach-Object { $_.Value } | Select-Object -Unique
+} else {
+    Write-Host "`n[WARNING] No standard names found. Listing ALL readable words > 5 chars:" -ForegroundColor Yellow
+    # Fallback: Just print generic words to help us spot them
+    $words = $text -split " " | Where-Object { $_.Length -gt 5 -and $_.Length -lt 20 }
+    $words | Select-Object -Unique | Select-Object -First 50
+}
