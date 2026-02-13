@@ -1,88 +1,99 @@
 import pandas as pd
 import numpy as np
-import gc
 
 # =================================================================
 # CONFIGURATION
 # =================================================================
 FILE_1_BASE = r'base_file.xlsx'
 FILE_2_NEW  = r'file_with_extras.xlsx'
-OUTPUT_FILE = 'Position_Based_Comparison.xlsx'
+OUTPUT_FILE = 'Final_Single_View_Report.xlsx'
 
-# The column you want to validate for 10-12 characters
-CHECK_COL   = 'Account_Code' 
+CHECK_COL   = 'Account_Code' # The column to validate (10-12 chars)
 FILTERS     = {'Category': ['Hardware']} 
 # =================================================================
 
 def run_comparison():
     try:
-        print("🚀 Loading files...")
+        print("🚀 Loading and filtering data...")
         df1 = pd.read_excel(FILE_1_BASE)
         df2 = pd.read_excel(FILE_2_NEW)
 
-        # 1. Apply Filters
+        # Apply Filters
         for col, values in FILTERS.items():
-            if col in df1.columns: df1 = df1[df1[col].isin(values)]
-            if col in df2.columns: df2 = df2[df2[col].isin(values)]
+            if col in df1.columns: df1 = df1[df1[col].isin(values)].reset_index(drop=True)
+            if col in df2.columns: df2 = df2[df2[col].isin(values)].reset_index(drop=True)
 
-        # 2. Create a Synthetic ID based on the physical Row Number
-        # This forces the merge to compare Row 1 to Row 1, Row 2 to Row 2
-        df1['Row_ID'] = range(len(df1))
-        df2['Row_ID'] = range(len(df2))
+        # Ensure both dataframes are the same length for row-by-row comparison
+        max_rows = max(len(df1), len(df2))
         
-        # Capture Excel-style row numbers for the report
-        df1['Base_Excel_Row'] = df1.index + 2
-        df2['New_Excel_Row'] = df2.index + 2
+        results = []
 
-        # 3. Validation: Length Check on the specific column
-        def check_len(val):
-            s_val = str(val).strip()
-            if s_val == 'nan': return True # Ignore empty cells or handle as you wish
-            return 10 <= len(s_val) <= 12
-
-        print("🔍 Checking row-by-row differences...")
-        # Merge on our synthetic Row_ID
-        df_all = pd.merge(df1, df2, on='Row_ID', how='outer', indicator='Presence', suffixes=('_base', '_new'))
-
-        def analyze_row(row):
-            if row['Presence'] == 'left_only': return 'DELETED'
-            if row['Presence'] == 'right_only': return 'NEW'
+        print("🔍 Checking for changes and validation errors...")
+        for i in range(max_rows):
+            # Get rows (handle cases where one file might be shorter)
+            row_base = df1.iloc[i] if i < len(df1) else None
+            row_new  = df2.iloc[i] if i < len(df2) else None
             
-            # Check Length Validation for both base and new
-            len_ok_base = check_len(row[f'{CHECK_COL}_base'])
-            len_ok_new  = check_len(row[f'{CHECK_COL}_new'])
+            status = "COMMON"
+            change_details = ""
             
-            if not len_ok_base or not len_ok_new:
-                return f'INVALID LENGTH: {CHECK_COL} must be 10-12 chars'
-
-            # Compare all original columns
-            cols_to_compare = [c for c in df1.columns if c not in ['Row_ID', 'Base_Excel_Row']]
-            changes = []
+            if row_base is not None and row_new is not None:
+                # 1. Validation Check (10-12 characters)
+                val = str(row_new[CHECK_COL]).strip()
+                if not (10 <= len(val) <= 12):
+                    status = "INVALID LENGTH"
+                
+                # 2. Check for changes in any column
+                changes = []
+                for col in df2.columns:
+                    b_val = str(row_base[col]) if col in df1.columns else "N/A"
+                    n_val = str(row_new[col])
+                    if b_val != n_val:
+                        changes.append(col)
+                
+                if changes:
+                    # If it wasn't already marked INVALID, mark it MODIFIED
+                    status = "MODIFIED" if status == "COMMON" else status
+                    change_details = f"Changed: {', '.join(changes)}"
             
-            for col in cols_to_compare:
-                b_val, n_val = row[f'{col}_base'], row[f'{col}_new']
-                if str(b_val) != str(n_val) and not (pd.isna(b_val) and pd.isna(n_val)):
-                    changes.append(col)
-            
-            if changes:
-                return f"MODIFIED: Changes in {', '.join(changes)}"
-            return "COMMON: No Change"
+            elif row_base is None:
+                status = "NEW ROW"
+            else:
+                status = "DELETED ROW"
 
-        df_all['Comparison_Result'] = df_all.apply(analyze_row, axis=1)
+            # Create the final row based on the NEW data, plus our status columns
+            final_row = row_new.to_dict() if row_new is not None else row_base.to_dict()
+            final_row['Comparison_Status'] = status
+            final_row['Change_Logs'] = change_details
+            final_row['Original_Row'] = i + 2
+            results.append(final_row)
 
-        # 4. Clean up and Save
-        # Reorganize columns to put Result and Row IDs at the front
-        cols = ['Comparison_Result', 'Base_Excel_Row', 'New_Excel_Row'] + [c for c in df_all.columns if c not in ['Comparison_Result', 'Base_Excel_Row', 'New_Excel_Row', 'Presence', 'Row_ID']]
-        df_final = df_all[cols]
+        # 3. Save to Excel
+        df_final = pd.DataFrame(results)
+        
+        # Move status columns to the front
+        cols = ['Comparison_Status', 'Change_Logs', 'Original_Row'] + [c for c in df2.columns]
+        df_final = df_final[cols]
 
-        print(f"💾 Saving to {OUTPUT_FILE}...")
+        print(f"💾 Saving report to {OUTPUT_FILE}...")
         writer = pd.ExcelWriter(OUTPUT_FILE, engine='xlsxwriter')
         df_final.to_excel(writer, index=False)
         
-        # (Standard Formatting logic here as used in previous steps...)
+        # Formatting
+        workbook = writer.book
+        worksheet = writer.sheets['Sheet1']
+        red_fmt = workbook.add_format({'bg_color': '#FFC7CE'})   # Errors/Deleted
+        yel_fmt = workbook.add_format({'bg_color': '#FFEB9C'})   # Modified
         
+        worksheet.conditional_format(1, 0, len(df_final), 0, {
+            'type': 'cell', 'criteria': 'containing', 'value': 'INVALID', 'format': red_fmt
+        })
+        worksheet.conditional_format(1, 0, len(df_final), 0, {
+            'type': 'cell', 'criteria': 'containing', 'value': 'MODIFIED', 'format': yel_fmt
+        })
+
         writer.close()
-        print("✅ DONE!")
+        print("✅ Process Complete!")
 
     except Exception as e:
         print(f"❌ Error: {e}")
