@@ -127,34 +127,43 @@ from PIL import Image, ImageOps, ImageEnhance
 # --- CONFIGURATION ---
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-def read_fads_with_spaces(image_path):
+def fix_ocr_numbers(image_path):
     try:
-        # 1. Load and Pre-process (Crucial for blue backgrounds)
+        # 1. Load the image
         img = Image.open(image_path).convert('RGB')
         
-        # Invert: Blue -> White, White -> Black
+        # 2. Invert colors (Crucial: Blue -> White background)
         inverted = ImageOps.invert(img)
         
-        # Boost contrast and convert to pure Black & White
-        enhancer = ImageEnhance.Contrast(inverted.convert('L'))
-        bw_img = enhancer.enhance(2.0).point(lambda x: 0 if x < 140 else 255, '1')
+        # 3. Convert to Grayscale
+        gray = inverted.convert('L')
         
-        # 2. Advanced OCR Configuration
-        # preserve_interword_spaces=1 forces Tesseract to keep the gaps
-        # --psm 6 treats the image as a single uniform block of text
-        custom_config = r'--psm 6 -c preserve_interword_spaces=1'
+        # 4. Sharpen and Increase Contrast
+        # This makes the "0" hole larger so it doesn't look like a "6"
+        enhancer = ImageEnhance.Contrast(gray)
+        high_contrast = enhancer.enhance(3.0) # Aggressive contrast
+        
+        # 5. Thresholding
+        # Adjust 160 higher if the '0' still looks like '6'
+        # Adjust 160 lower if the characters start disappearing
+        bw_img = high_contrast.point(lambda x: 0 if x < 160 else 255, '1')
+        
+        # 6. Save for inspection (Check if '0' looks like '0' here)
+        bw_img.save("number_check.png")
+
+        # 7. OCR Configuration
+        # --psm 6: Uniform block of text
+        # -c tessedit_char_whitelist: Only look for numbers, letters, and spaces
+        custom_config = r'--psm 6 -c preserve_interword_spaces=1 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz, '
         
         text = pytesseract.image_to_string(bw_img, config=custom_config)
-        
         return text
 
     except Exception as e:
         return f"Error: {e}"
 
 if __name__ == "__main__":
-    # Path to your image_1e902a.png snippet
-    result = read_fads_with_spaces("image_1e902a.png")
-    
-    print("--- SPATIAL OCR RESULT ---")
-    print(result)
-    print("--------------------------")
+    # Test on your snippet
+    print("Reading with high-precision settings...")
+    result = fix_ocr_numbers("image_1e902a.png")
+    print(f"\nExtracted Text:\n{result}")
