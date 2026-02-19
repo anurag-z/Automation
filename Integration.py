@@ -49,6 +49,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+import os
 import time
 from pywinauto import Application
 from PIL import ImageGrab, ImageOps, Image
@@ -56,40 +57,49 @@ import pytesseract
 
 # --- CONFIG ---
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+DEBUG_DIR = r"C:\Temp\OCR_Debug"
 
-def get_bottom_bar_text(window):
-    """Captures and reads ONLY the bottom section of the FADS window."""
+# Ensure the debug folder exists
+if not os.path.exists(DEBUG_DIR):
+    os.makedirs(DEBUG_DIR)
+
+def get_bottom_bar_text_with_debug(window, area_name):
+    """Captures the bottom bar and saves images for debugging coordinates."""
     try:
-        # 1. Get total window coordinates
+        # 1. Get window handle coordinates
         rect = window.rectangle()
         
-        # 2. Calculate ROI (Region of Interest)
-        # We only want the bottom part (approx. last 80 pixels)
+        # 2. Define the Bottom ROI
+        # We target the very bottom where the ADD ATTR line sits
         left = rect.left
         right = rect.right
         bottom = rect.bottom
-        top_of_bar = rect.bottom - 80  # Adjust this number to crop higher or lower
+        top_of_bar = rect.bottom - 70  # Try 70 pixels for just the status line
         
-        # 3. Capture the cropped area
-        screenshot = ImageGrab.grab(bbox=(left, top_of_bar, right, bottom))
+        # 3. Capture Raw Image
+        raw_capture = ImageGrab.grab(bbox=(left, top_of_bar, right, bottom))
+        raw_capture.save(os.path.join(DEBUG_DIR, f"1_Raw_{area_name}.png"))
         
-        # 4. Apply the working High-Res fix
-        width, height = screenshot.size
-        img = screenshot.resize((width * 3, height * 3), resample=Image.LANCZOS)
+        # 4. Processing (The High-Res fix you confirmed works)
+        width, height = raw_capture.size
+        img = raw_capture.resize((width * 3, height * 3), resample=Image.LANCZOS)
         
-        # 5. Pre-process (Invert & Threshold)
+        # Invert and Threshold
         inverted = ImageOps.invert(img.convert('RGB'))
+        # Using 180 threshold to keep '0' from becoming '6'
         bw_img = inverted.convert('L').point(lambda x: 0 if x < 180 else 255, '1')
         
-        # 6. OCR with preserved spaces
+        # Save the processed image - IF THIS IS BLANK, THE THRESHOLD IS TOO HIGH
+        bw_img.save(os.path.join(DEBUG_DIR, f"2_Processed_{area_name}.png"))
+        
+        # 5. OCR
         config = r'--psm 6 -c preserve_interword_spaces=1'
-        return pytesseract.image_to_string(bw_img, config=config)
+        text = pytesseract.image_to_string(bw_img, config=config)
+        
+        return text.strip()
 
     except Exception as e:
-        return f"ROI Error: {e}"
+        return f"Debug Error: {e}"
 
-# --- Usage Example ---
-# app = Application(backend="win32").connect(title_re=".*FADS PRIME.*")
-# window = app.window(title_re=".*FADS PRIME.*")
-# text = get_bottom_bar_text(window)
-# print(text)
+# Usage inside your loop:
+# result = get_bottom_bar_text_with_debug(window, row["AreaName"])
