@@ -75,46 +75,49 @@ if __name__ == "__main__":
     main()
 
 
-
 import pytesseract
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 
 # --- CONFIGURATION ---
-# Update this path to where your Tesseract engine is installed
+# Ensure this points to your Tesseract EXE
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-def read_fads_screen(image_path):
+def read_fads_clean(image_path):
     try:
-        # 1. Load the image from your local drive
-        img = Image.open(image_path)
+        # 1. Load the original blue image
+        img = Image.open(image_path).convert('RGB')
         
-        # 2. Convert to RGB and Invert colors
-        # This turns the blue background white and the white text black
-        img_rgb = img.convert('RGB')
-        inverted_img = ImageOps.invert(img_rgb)
+        # 2. Invert colors: Blue background becomes white, white text becomes black
+        inverted_img = ImageOps.invert(img)
         
-        # 3. Convert to Grayscale (L) for cleaner OCR processing
-        final_img = inverted_img.convert('L')
+        # 3. Convert to Grayscale (L) for better contrast
+        gray_img = inverted_img.convert('L')
         
-        # Optional: Save the "fixed" image to see what the OCR is looking at
-        final_img.save("processed_for_ocr.png")
+        # 4. Enhance Contrast: Sharpen the text edges
+        enhancer = ImageEnhance.Contrast(gray_img)
+        high_contrast = enhancer.enhance(2.0)
+        
+        # 5. Thresholding: Force pixels to be either pure black or pure white
+        # This removes "ghosting" or shadows that cause errors like '1@' instead of '10'
+        final_img = high_contrast.point(lambda x: 0 if x < 140 else 255, '1')
+        
+        # Save for debugging to see the improved quality
+        final_img.save("ocr_debug_clean.png")
 
-        # 4. Run OCR with Page Segmentation Mode (PSM) 6
-        # PSM 6 is best for uniform blocks of text like DOS/Console screens
-        text = pytesseract.image_to_string(final_img, config='--psm 6')
+        # 6. Run OCR with PSM 6 (Uniform block of text)
+        # Added whitelist for common characters found in your FADS screens
+        custom_config = r'--psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,: '
+        text = pytesseract.image_to_string(final_img, config=custom_config)
 
-        return text
+        return text.strip()
 
     except Exception as e:
-        return f"Error processing image: {e}"
+        return f"Error: {e}"
 
-# --- EXECUTION ---
 if __name__ == "__main__":
-    # Replace this with the path to the image you want to read
-    test_image = "image_1e902a.png" 
-    
-    extracted_text = read_fads_screen(test_image)
-    
-    print("\n--- EXTRACTED TEXT ---")
-    print(extracted_text)
-    print("----------------------")
+    # Path to your captured FADS screen snippet
+    image_to_read = "image_1e902a.png" 
+    print("Reading screen...")
+    print("-" * 30)
+    print(read_fads_clean(image_to_read))
+    print("-" * 30)
