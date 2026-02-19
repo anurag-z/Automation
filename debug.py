@@ -1,16 +1,22 @@
 from PIL import Image, ImageGrab, ImageOps, ImageEnhance
 import pytesseract
+import os
+
+# IMPORTANT: Point this to where Tesseract is installed on your machine
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def capture_and_read(window):
     try:
-        # 1. Get the exact coordinates of the window
+        # 1. Get the exact coordinates of the FADS window at this moment
         rect = window.rectangle()
+
+        # 2. Take the screenshot (Left, Top, Right, Bottom)
         screenshot = ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom))
         img = screenshot.convert('RGB')
         
         width, height = img.size
 
-        # 2. FIND THE WHITE BORDER LINE
+        # 3. FIND THE WHITE BORDER LINE
         white_line_y = -1
         mid_x = width // 2
 
@@ -23,14 +29,18 @@ def capture_and_read(window):
                 white_line_y = y
                 break
 
-        # 3. CROP BELOW THE BORDER
+        # 4. CROP BELOW THE BORDER
         # Start 3 pixels below the white line, or fallback to height - 35
         start_y = (white_line_y + 3) if white_line_y != -1 else (height - 35)
+        
+        # SAFETY FIX: Prevent the "lower is less than upper" crash
+        if start_y >= height:
+            start_y = height - 30 
         
         # Crop the image: (left, top, right, bottom)
         cropped_img = img.crop((0, start_y, width, height))
 
-        # 4. APPLY YOUR WORKING IMAGE PROCESSING (on the cropped area only)
+        # 5. APPLY YOUR WORKING IMAGE PROCESSING (on the cropped area only)
         crop_width, crop_height = cropped_img.size
         img_resized = cropped_img.resize((crop_width * 3, crop_height * 3), resample=Image.Resampling.LANCZOS)
         
@@ -42,14 +52,21 @@ def capture_and_read(window):
         
         bw_img = sharpened.point(lambda x: 0 if x < 180 else 255, '1')
 
-        # SAVE THIS TO CHECK: It should now only show the bottom row!
-        bw_img.save("debug_bottom_line_crop.png")
+        # 6. SAVE DEBUG IMAGE (Using Raw String for C: Drive path)
+        # Make sure the folder "C:\FADS_Debug" actually exists on your computer!
+        debug_folder = r"C:\FADS_Debug"
+        if not os.path.exists(debug_folder):
+            os.makedirs(debug_folder)
+            
+        debug_path = os.path.join(debug_folder, "debug_bottom_line_crop.png")
+        bw_img.save(debug_path)
 
-        # 5. Precise OCR Config
-        custom_config = r'--psm 6 -c preserve_interword_spaces=1 -c tessedit_char_blacklist=@Q'
+        # 7. PRECISE OCR CONFIG & READ
+        custom_config = r'--psm 6 -c preserve_interword_spaces=1'
         text = pytesseract.image_to_string(bw_img, config=custom_config)
         
-        # Extra safety cleanup just in case
+        # 8. POST-PROCESSING CLEANUP
+        # Fix the Q and @ issues without messing with Tesseract settings
         text = text.replace("Q ", "0 ").replace("@", "0")
         
         return text.strip()
