@@ -127,34 +127,32 @@ from PIL import Image, ImageOps, ImageEnhance
 # --- CONFIGURATION ---
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-def fix_ocr_numbers(image_path):
+def fix_the_ten_ocr(image_path):
     try:
-        # 1. Load the image
+        # 1. Load and Resize immediately (LANCZOS is best for keeping text sharp)
         img = Image.open(image_path).convert('RGB')
+        width, height = img.size
+        # Blow it up by 300% to help Tesseract see the gaps
+        img = img.resize((width * 3, height * 3), resample=Image.Resampling.LANCZOS)
         
-        # 2. Invert colors (Crucial: Blue -> White background)
+        # 2. Invert: Blue -> White
         inverted = ImageOps.invert(img)
         
-        # 3. Convert to Grayscale
+        # 3. Grayscale and Sharpen
         gray = inverted.convert('L')
+        enhancer = ImageEnhance.Sharpness(gray)
+        sharpened = enhancer.enhance(2.0)
         
-        # 4. Sharpen and Increase Contrast
-        # This makes the "0" hole larger so it doesn't look like a "6"
-        enhancer = ImageEnhance.Contrast(gray)
-        high_contrast = enhancer.enhance(3.0) # Aggressive contrast
+        # 4. Binary Thresholding
+        # We use a higher threshold (180) to "thin out" the characters. 
+        # This makes the hole in the '0' larger so it cannot be mistaken for '6'.
+        bw_img = sharpened.point(lambda x: 0 if x < 180 else 255, '1')
         
-        # 5. Thresholding
-        # Adjust 160 higher if the '0' still looks like '6'
-        # Adjust 160 lower if the characters start disappearing
-        bw_img = high_contrast.point(lambda x: 0 if x < 160 else 255, '1')
-        
-        # 6. Save for inspection (Check if '0' looks like '0' here)
-        bw_img.save("number_check.png")
+        # SAVE THIS AND LOOK AT IT: If the 0 still looks like a 6, increase 180 to 200.
+        bw_img.save("debug_ten_check.png")
 
-        # 7. OCR Configuration
-        # --psm 6: Uniform block of text
-        # -c tessedit_char_whitelist: Only look for numbers, letters, and spaces
-        custom_config = r'--psm 6 -c preserve_interword_spaces=1 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz, '
+        # 5. Precise OCR Config
+        custom_config = r'--psm 6 -c preserve_interword_spaces=1'
         
         text = pytesseract.image_to_string(bw_img, config=custom_config)
         return text
@@ -163,7 +161,6 @@ def fix_ocr_numbers(image_path):
         return f"Error: {e}"
 
 if __name__ == "__main__":
-    # Test on your snippet
-    print("Reading with high-precision settings...")
-    result = fix_ocr_numbers("image_1e902a.png")
-    print(f"\nExtracted Text:\n{result}")
+    print("Attempting high-resolution read for '10'...")
+    result = fix_the_ten_ocr("image_1e902a.png")
+    print(f"\nFinal Extracted Text:\n{result}")
