@@ -121,3 +121,40 @@ if __name__ == "__main__":
     print("-" * 30)
     print(read_fads_clean(image_to_read))
     print("-" * 30)
+import pytesseract
+from PIL import Image, ImageOps, ImageEnhance
+
+# --- CONFIGURATION ---
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+def read_fads_with_spaces(image_path):
+    try:
+        # 1. Load and Pre-process (Crucial for blue backgrounds)
+        img = Image.open(image_path).convert('RGB')
+        
+        # Invert: Blue -> White, White -> Black
+        inverted = ImageOps.invert(img)
+        
+        # Boost contrast and convert to pure Black & White
+        enhancer = ImageEnhance.Contrast(inverted.convert('L'))
+        bw_img = enhancer.enhance(2.0).point(lambda x: 0 if x < 140 else 255, '1')
+        
+        # 2. Advanced OCR Configuration
+        # preserve_interword_spaces=1 forces Tesseract to keep the gaps
+        # --psm 6 treats the image as a single uniform block of text
+        custom_config = r'--psm 6 -c preserve_interword_spaces=1'
+        
+        text = pytesseract.image_to_string(bw_img, config=custom_config)
+        
+        return text
+
+    except Exception as e:
+        return f"Error: {e}"
+
+if __name__ == "__main__":
+    # Path to your image_1e902a.png snippet
+    result = read_fads_with_spaces("image_1e902a.png")
+    
+    print("--- SPATIAL OCR RESULT ---")
+    print(result)
+    print("--------------------------")
