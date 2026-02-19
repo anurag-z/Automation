@@ -73,3 +73,44 @@ def capture_and_read(window):
 
     except Exception as e:
         return f"Capture Error: {e}"
+from PIL import ImageGrab
+import os
+import ctypes
+
+# This ensures Windows scaling (like 125% zoom) doesn't mess up your coordinates
+ctypes.windll.user32.SetProcessDPIAware()
+
+def capture_hardcoded_region():
+    # --- ADJUST THESE COORDINATES ---
+    # Look at your screen as an X/Y grid starting at (0,0) in the top-left corner.
+    # These numbers are estimates based on your screenshot. 
+    
+    LEFT = 0       # Starts at the far left edge
+    TOP = 640      # Starts roughly where the blue box ends and the black begins
+    RIGHT = 1100   # Extends right to catch all the text
+    BOTTOM = 690   # Ends right underneath the text
+    
+    # Create the bounding box
+    bbox = (LEFT, TOP, RIGHT, BOTTOM)
+    
+    try:
+        # Take the screenshot
+        screenshot = ImageGrab.grab(bbox=bbox)
+        
+        # Save it to the C: drive to check your alignment
+        save_dir = r"C:\FADS_Debug"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+            
+        save_path = os.path.join(save_dir, "hardcoded_crop.png")
+        screenshot.save(save_path)
+        
+        print(f"SUCCESS! Screenshot saved to: {save_path}")
+        print(f"Used coordinates: {bbox}")
+        print("-> Go look at the image. If it's too high or low, adjust the TOP and BOTTOM numbers!")
+        
+    except Exception as e:
+        print(f"Capture Error: {e}")
+
+if __name__ == "__main__":
+    capture_hardcoded_region()
