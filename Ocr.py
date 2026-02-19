@@ -1,105 +1,83 @@
 import time
+import subprocess
 from pywinauto import Application
 from PIL import ImageGrab, ImageOps
 import pytesseract
 
 # --- CONFIGURATION ---
-# Path to your Tesseract engine
+# Path to your Tesseract engine (Verified in your earlier check)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# Launch settings from your C# code
+# Launch settings from your C# image_1d23cf.png
 WORKING_DIR = r"C:\1040ta5"
 LAUNCH_CMD = 'cmd.exe /k FADS'
 
 def navigate_field(area, fieldname, window):
-    print(f"Processing Screen: {area}")
+    print(f"\n[+] Navigating: {area} -> {fieldname}")
     
-    # Block 1: Navigate to Form (Matches your C# image)
+    # Block 1: Form Selection (Matches your C# image_1d2446.png)
     window.type_keys("{F3}")
     window.type_keys("{ESC}")
-    window.type_keys("M")
-    window.type_keys("A")
-    window.type_keys("S")
-    window.type_keys(area) # Form name
-    window.type_keys("{ENTER}")
+    for key in "MAS": 
+        window.type_keys(key)
+        time.sleep(0.1)
+    window.type_keys(area + "{ENTER}")
     time.sleep(0.5)
     
-    # Block 2: Navigate to Field
-    window.type_keys("{ESC}")
-    window.type_keys("{ESC}")
-    window.type_keys("F")
-    window.type_keys("F")
-    window.type_keys("S")
-    window.type_keys(fieldname) # Field Name
-    window.type_keys("{ENTER}")
+    # Block 2: Field Selection
+    window.type_keys("{ESC}{ESC}")
+    for key in "FFS":
+        window.type_keys(key)
+        time.sleep(0.1)
+    window.type_keys(fieldname + "{ENTER}")
     time.sleep(0.5)
     
-    # Block 3: Final trigger and OCR
-    window.type_keys("{F9}")
-    window.type_keys("A")
-    window.type_keys("A")
-    time.sleep(1) # Wait for DOS screen to refresh
+    # Block 3: Final trigger (F9 -> A -> A)
+    window.type_keys("{F9}AA")
+    time.sleep(1.5) 
     
-    # OCR Section (Captures via Window Handle/HWND)
+    # Block 4: Capture via Window Handle (HWND)
     rect = window.rectangle()
     screenshot = ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom))
     
-    # Invert for DOS (Blue background -> White) for better OCR
+    # Invert Blue to White for accurate OCR
     processed_img = ImageOps.invert(screenshot.convert('RGB'))
-    result = pytesseract.image_to_string(processed_img, config='--psm 6')
+    text_result = pytesseract.image_to_string(processed_img, config='--psm 6')
     
-    print(f"Result for {area}: {result.strip()}")
+    print("--- OCR RESULT ---")
+    print(text_result.strip())
+    print("------------------")
+    
     window.type_keys("{ESC}")
 
 def main():
-    # 1. Launch Process (Matches your Process.Start)
-    print("Launching FADS...")
-    app = Application(backend="win32").start(LAUNCH_CMD, work_dir=WORKING_DIR)
-    time.sleep(3) # Matches your Thread.Sleep(3000)
-    
-    # 2. Connect to the specific FADS window
-    window = app.window(title_re=".*FADS PRIME.*")
-    window.set_focus()
+    try:
+        # FIX: Launch using subprocess to avoid 'Not a GUI process' error
+        print("Launching FADS...")
+        subprocess.Popen(LAUNCH_CMD, cwd=WORKING_DIR, shell=True)
+        
+        # Give it 3 seconds to load (Matches your C# Thread.Sleep(3000))
+        time.sleep(3) 
+        
+        # Connect to the window by title (as seen in image_1cbe8d.png)
+        app = Application(backend="win32").connect(title_re=".*FADS PRIME.*")
+        window = app.window(title_re=".*FADS PRIME.*")
+        window.set_focus()
 
-    # 3. Data Loop (Matches your List<Dictionary> foreach)
-    data = [
-        {"AreaName": "Basis", "FieldName": "KL72"},
-        {"AreaName": "F4797", "FieldName": "POST"},
-        {"AreaName": "FSCHDAMT", "FieldName": "STAA"},
-        {"AreaName": "FCOMB", "FieldName": "NITEMSTD"}
-    ]
+        # Data list from your C# image_1d23cf.png
+        tasks = [
+            {"Area": "Basis", "Field": "KL72"},
+            {"Area": "F4797", "Field": "POST"},
+            {"Area": "FSCHDAMT", "Field": "STAA"},
+            {"Area": "FCOMB", "Field": "NITEMSTD"}
+        ]
 
-    for row in data:
-        navigate_field(row["AreaName"], row["FieldName"], window)
-        time.sleep(0.1) # Matches your Thread.Sleep(100)
+        for t in tasks:
+            navigate_field(t["Area"], t["Field"], window)
+            time.sleep(0.2)
+
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
-
-
-import os
-import shutil
-
-# 1. Check if Tesseract is found automatically
-auto_path = shutil.which("tesseract")
-print(f"Tesseract in System PATH: {auto_path}")
-
-# 2. Check common manual paths
-common_paths = [
-    r'C:\Program Files\Tesseract-OCR\tesseract.exe',
-    r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe'
-]
-
-print("\nChecking common install locations:")
-for path in common_paths:
-    if os.path.exists(path):
-        print(f"[FOUND] {path}")
-    else:
-        print(f"[MISSING] {path}")
-
-# 3. Check if Pytesseract library is actually ready
-try:
-    import pytesseract
-    print("\n[OK] Pytesseract library is installed.")
-except ImportError:
-    print("\n[ERROR] Pytesseract library not found. Use 'python -m pip install pytesseract'")
