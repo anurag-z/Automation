@@ -75,3 +75,31 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+import os
+import shutil
+
+# 1. Check if Tesseract is found automatically
+auto_path = shutil.which("tesseract")
+print(f"Tesseract in System PATH: {auto_path}")
+
+# 2. Check common manual paths
+common_paths = [
+    r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+    r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe'
+]
+
+print("\nChecking common install locations:")
+for path in common_paths:
+    if os.path.exists(path):
+        print(f"[FOUND] {path}")
+    else:
+        print(f"[MISSING] {path}")
+
+# 3. Check if Pytesseract library is actually ready
+try:
+    import pytesseract
+    print("\n[OK] Pytesseract library is installed.")
+except ImportError:
+    print("\n[ERROR] Pytesseract library not found. Use 'python -m pip install pytesseract'")
