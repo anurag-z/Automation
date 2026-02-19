@@ -1,81 +1,93 @@
 import os
+import ctypes
 import win32gui
 import pytesseract
 from PIL import ImageGrab
 
-# IMPORTANT: Point this to where Tesseract is installed on your Windows machine
+# 1. FIX WINDOWS SCALING ISSUES (CRITICAL)
+# This tells Windows to give Python the exact pixel coordinates on your screen.
+# Without this, Windows Display Scaling (like 125%) will capture the wrong area.
+ctypes.windll.user32.SetProcessDPIAware()
+
+# IMPORTANT: Point this to where Tesseract is installed on your machine
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-def capture_and_read(hwnd, debug_dir, save_debug_image=True):
-    """
-    Captures a specific window, finds the bottom white line, 
-    crops below it, runs OCR, and optionally saves a debug image.
-    """
-    if save_debug_image and not os.path.exists(debug_dir):
-        os.makedirs(debug_dir)
-
-    # 1. GET COORDINATES (Replicating C#: GetClientRect + ClientToScreen)
-    # This ensures we only capture the inner window, excluding title bars
-    left_top = win32gui.ClientToScreen(hwnd, (0, 0))
-    _, _, client_right, client_bottom = win32gui.GetClientRect(hwnd)
+def find_fads_window():
+    """Finds the window handle (hWnd) by checking if 'FADS PRIME' is in the title."""
+    found_hwnd = None
     
-    width = client_right
-    height = client_bottom
-    screen_x, screen_y = left_top
+    def callback(hwnd, extra):
+        nonlocal found_hwnd
+        if win32gui.IsWindowVisible(hwnd):
+            title = win32gui.GetWindowText(hwnd)
+            # Match the title from your screenshot
+            if "FADS PRIME" in title:
+                found_hwnd = hwnd
+        return True
+        
+    win32gui.EnumWindows(callback, None)
+    return found_hwnd
 
-    # Capture the screen region into memory
-    bbox = (screen_x, screen_y, screen_x + width, screen_y + height)
-    full_content = ImageGrab.grab(bbox=bbox).convert('RGB')
+def capture_and_read():
+    hwnd = find_fads_window()
+    if not hwnd:
+        print("Could not find the 'FADS PRIME' window. Make sure the app is open.")
+        return
 
-    # 2. FIND THE WHITE BORDER LINE
+    # 2. GET INNER WINDOW COORDINATES
+    # ClientToScreen ensures we ignore the top white title bar and window borders
+    left, top = win32gui.ClientToScreen(hwnd, (0, 0))
+    _, _, right, bottom = win32gui.GetClientRect(hwnd)
+    
+    width = right
+    height = bottom
+
+    # 3. CAPTURE THE SCREEN INTO MEMORY
+    bbox = (left, top, left + width, top + height)
+    img = ImageGrab.grab(bbox).convert('RGB')
+
+    # 4. SCAN FOR THE WHITE LINE
+    # We scan the middle of the screen, moving from the bottom upwards
     white_line_y = -1
     mid_x = width // 2
 
-    # Loop from bottom up to the middle of the window
     for y in range(height - 1, height // 2, -1):
-        r, g, b = full_content.getpixel((mid_x, y))
+        r, g, b = img.getpixel((mid_x, y))
         
-        # Calculate brightness (Luminance formula)
-        brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
-        
-        if brightness > 0.85:
+        # Check if the pixel is bright white/light gray
+        if r > 200 and g > 200 and b > 200:
             white_line_y = y
             break
 
-    # 3. CROP BELOW THE BORDER
-    # Start 3 pixels below the white line to avoid OCR noise
-    start_y = (white_line_y + 3) if white_line_y != -1 else (height - 35)
+    # 5. CROP BELOW THE LINE
+    if white_line_y != -1:
+        start_y = white_line_y + 3  # Start just below the white line
+    else:
+        print("Warning: White line not found. Using default fallback.")
+        start_y = height - 40     # Fallback if screen is empty
+
     capture_height = height - start_y
-    
     if capture_height <= 0:
         capture_height = 30
 
-    crop_region = (0, start_y, width, start_y + capture_height)
-    raw_crop = full_content.crop(crop_region)
+    # Crop format: (left, upper, right, lower)
+    crop_box = (0, start_y, width, start_y + capture_height)
+    cropped_img = img.crop(crop_box)
 
-    # 4. OPTIONAL: SAVE DEBUG SCREENSHOT
-    if save_debug_image:
-        save_path = os.path.join(debug_dir, "1_Target_Crop.png")
-        raw_crop.save(save_path)
-        print(f"[Debug] Cropped image saved to: {save_path}")
+    # 6. SAVE DEBUG SCREENSHOT
+    debug_dir = "debug_output"
+    os.makedirs(debug_dir, exist_ok=True)
+    debug_path = os.path.join(debug_dir, "runtime_target_crop.png")
+    cropped_img.save(debug_path)
+    print(f"[Debug] Cropped image saved to: {os.path.abspath(debug_path)}")
 
-    # 5. RUN OCR IN RUNTIME (In-Memory)
-    # --psm 6 tells Tesseract to assume a single uniform block of text
-    extracted_text = pytesseract.image_to_string(raw_crop, config='--psm 6')
+    # 7. READ TEXT USING OCR
+    # --psm 6 tells Tesseract it's looking at a uniform block of text
+    text = pytesseract.image_to_string(cropped_img, config='--psm 6')
     
-    return extracted_text.strip()
+    print("\n--- EXTRACTED TEXT ---")
+    print(text.strip())
+    print("----------------------")
 
-# --- HOW TO TEST IT ---
 if __name__ == "__main__":
-    # Replace with the exact Title of your target window
-    target_window_title = "Your Terminal Window Title"
-    
-    hwnd = win32gui.FindWindow(None, target_window_title)
-    
-    if hwnd:
-        print(f"Window found! Handle ID: {hwnd}")
-        text = capture_and_read(hwnd, debug_dir="debug_output", save_debug_image=True)
-        print("\n--- EXTRACTED TEXT ---")
-        print(text)
-    else:
-        print(f"Could not find a window titled '{target_window_title}'")
+    capture_and_read()
