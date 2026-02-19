@@ -64,42 +64,42 @@ if not os.path.exists(DEBUG_DIR):
     os.makedirs(DEBUG_DIR)
 
 def get_bottom_bar_text_with_debug(window, area_name):
-    """Captures the bottom bar and saves images for debugging coordinates."""
+   """Captures only the bottom two lines of the FADS window."""
     try:
-        # 1. Get window handle coordinates
+        # 1. Force the window to the front before calculating coordinates
+        window.set_focus()
+        time.sleep(0.5) # Give Windows time to draw the pixels
+        
+        # 2. Get window coordinates
         rect = window.rectangle()
         
-        # 2. Define the Bottom ROI
-        # We target the very bottom where the ADD ATTR line sits
-        left = rect.left
-        right = rect.right
-        bottom = rect.bottom
-        top_of_bar = rect.bottom - 70  # Try 70 pixels for just the status line
+        # 3. Define the Bottom ROI (Region of Interest)
+        # We target the bottom 60 pixels for the status line
+        # Use rect.bottom - 60 to avoid capturing the taskbar or main form
+        left = rect.left + 5    # Small offset to avoid window borders
+        top = rect.bottom - 65  # The 'ADD ATTR' line starts roughly 60px from bottom
+        right = rect.right - 5
+        bottom = rect.bottom - 5
         
-        # 3. Capture Raw Image
-        raw_capture = ImageGrab.grab(bbox=(left, top_of_bar, right, bottom))
-        raw_capture.save(os.path.join(DEBUG_DIR, f"1_Raw_{area_name}.png"))
+        # 4. Capture and Save Raw for verification
+        raw = ImageGrab.grab(bbox=(left, top, right, bottom))
+        raw.save(os.path.join(DEBUG_DIR, f"Raw_{label}.png"))
         
-        # 4. Processing (The High-Res fix you confirmed works)
-        width, height = raw_capture.size
-        img = raw_capture.resize((width * 3, height * 3), resample=Image.LANCZOS)
+        # 5. Pre-process for OCR (High-Res Fix)
+        # Resize 3x to ensure '10' isn't read as '16'
+        width, height = raw.size
+        img = raw.resize((width * 3, height * 3), resample=Image.LANCZOS)
         
-        # Invert and Threshold
+        # Invert and Binary Threshold
         inverted = ImageOps.invert(img.convert('RGB'))
-        # Using 180 threshold to keep '0' from becoming '6'
-        bw_img = inverted.convert('L').point(lambda x: 0 if x < 180 else 255, '1')
+        # Using 170 as threshold based on your FADS blue color
+        bw_img = inverted.convert('L').point(lambda x: 0 if x < 170 else 255, '1')
+        bw_img.save(os.path.join(DEBUG_DIR, f"Processed_{label}.png"))
         
-        # Save the processed image - IF THIS IS BLANK, THE THRESHOLD IS TOO HIGH
-        bw_img.save(os.path.join(DEBUG_DIR, f"2_Processed_{area_name}.png"))
-        
-        # 5. OCR
-        config = r'--psm 6 -c preserve_interword_spaces=1'
-        text = pytesseract.image_to_string(bw_img, config=config)
-        
-        return text.strip()
+        # 6. OCR
+        return pytesseract.image_to_string(bw_img, config=r'--psm 6 -c preserve_interword_spaces=1')
 
     except Exception as e:
-        return f"Debug Error: {e}"
-
-# Usage inside your loop:
+        return f"Error: {e}"
+        # Usage inside your loop:
 # result = get_bottom_bar_text_with_debug(window, row["AreaName"])
