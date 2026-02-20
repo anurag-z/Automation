@@ -1,0 +1,197 @@
+import time
+import os
+import ctypes
+import pandas as pd
+import pytest
+from pywinauto import Application, Desktop
+from PIL import ImageGrab, ImageOps, Image, ImageEnhance
+import pytesseract
+import win32gui
+
+# ==========================================
+# 1. CONSTANTS & SETUP
+# ==========================================
+WORKING_DIR = r"C:\1040ta5"
+LAUNCH_CMD = r'cmd.exe /k FADS'
+TESSERACT_PATH = r'C:\Users\C302461\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'
+DEBUG_DIR = r"C:\Temp\OCR_Debug"
+FADS_DEBUG_DIR = r"C:\FADS_Debug"
+EXCEL_PATH = r"C:\Test\FieldAnalysis_Combined_1040.xlsx"
+EXCEL_SHEET = 'Demo'
+
+# --- DPI Awareness ---
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    ctypes.windll.user32.SetProcessDPIAware()
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+except Exception as e:
+    print(f"[DPI/Tesseract Setup Error] {e}")
+
+# ==========================================
+# 2. UTILITY & NAVIGATION METHODS
+# ==========================================
+def ensure_dir_exists(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+def launch_fads():
+    app = Application(backend="uia").start(LAUNCH_CMD, work_dir=WORKING_DIR)
+    time.sleep(2)
+    return app
+
+def safe_type(window, keystrokes, wait_time=0.2):
+    """Acts as a Pause/Play button. Waits until FADS is active before typing."""
+    try:
+        real_window = window.wrapper_object()
+        fads_handle = real_window.handle
+        
+        attempts = 0
+        while win32gui.GetForegroundWindow() != fads_handle:
+            print(f"⚠️ Paused: Waiting for FADS to be active to type '{keystrokes}'...")
+            try:
+                real_window.set_focus()
+            except:
+                pass
+            time.sleep(1.0)
+            attempts += 1
+            if attempts > 15:
+                raise Exception("Focus timeout.")
+
+        window.type_keys(keystrokes)
+        if wait_time > 0:
+            time.sleep(wait_time)
+            
+    except Exception as e:
+        print(f"❌ CRITICAL: Could not type '{keystrokes}'. Error: {e}")
+        raise e
+
+def navigate_field(area, fieldname, row, column, window):
+    """Navigates to the specific screen for the given area and field."""
+    try:
+        window.set_focus()
+        window.maximize()
+        safe_type(window, "{F3}{ESC}")
+        
+        for key in "MAS":
+            safe_type(window, key, wait_time=0.2)
+            
+        safe_type(window, area + "{ENTER}", wait_time=0.5)
+        safe_type(window, "{ESC}{ESC}")
+        
+        for key in "FFS":
+            safe_type(window, key, wait_time=0.2)
+            
+        safe_type(window, fieldname + "{ENTER}", wait_time=0.8)
+        safe_type(window, "{F9}AA", wait_time=1.2)
+        
+        safe_type(window, "{ESC}")
+    except Exception as e:
+        print(f"❌ [navigate_field] Error navigating to {area} -> {fieldname}: {e}")
+
+# ==========================================
+# 3. OCR & EXTRACTION METHODS
+# ==========================================
+def capture_and_read(window):
+    """Placeholder for your robust image processing and OCR logic."""
+    # Insert your exact capture_and_read image enhancement logic here
+    # Make sure it returns the raw text string.
+    pass 
+
+def safe_get_field_values(window):
+    """Waits for UI to settle, captures screen, and returns the raw list."""
+    try:
+        real_window = window.wrapper_object()
+        fads_handle = real_window.handle
+        
+        attempts = 0
+        while win32gui.GetForegroundWindow() != fads_handle:
+            try: real_window.set_focus()
+            except: pass
+            time.sleep(1.0)
+            attempts += 1
+            if attempts > 15: raise Exception("Focus timeout.")
+
+        time.sleep(0.5) # Critical pause for Windows animation
+        
+        # Assume capture_and_read is defined and returns the raw string
+        screen_data = capture_and_read(window) 
+        if not screen_data or screen_data.strip() == "":
+            return []
+            
+        lines = screen_data.strip().split('\n')
+        last_line = lines[-1]
+        ls = last_line.split()
+        return ls
+
+    except Exception as e:
+        print(f"❌ Error extracting field values: {e}")
+        return []
+
+# ==========================================
+# 4. PYTEST DATA PROVIDER
+# ==========================================
+def get_excel_tasks():
+    """Reads Excel and provides a list of tuples for Pytest."""
+    df = pd.read_excel(EXCEL_PATH, sheet_name=EXCEL_SHEET)
+    # Drop completely empty rows just in case
+    df = df.dropna(how='all') 
+    
+    areas = df['Area'].tolist()
+    field_names = df['Field Name'].tolist()
+    rows = df['Row'].tolist()
+    lengths = df['Length'].tolist()
+    
+    return list(zip(areas, field_names, rows, lengths))
+
+# ==========================================
+# 5. PYTEST FIXTURE & TEST LOGIC
+# ==========================================
+@pytest.fixture(scope="session")
+def fads_window():
+    """Launches the app once for the entire test session."""
+    ensure_dir_exists(DEBUG_DIR)
+    app = launch_fads()
+    
+    window = Desktop(backend="uia").window(title_re=".*FADS PRIME.*")
+    window.wait('ready', timeout=10)
+    print("\n[+] FADS Application Launched.")
+    
+    yield window 
+
+@pytest.mark.parametrize("area, expected_fieldname, expected_row, expected_length", get_excel_tasks())
+def test_fads_field_validation(fads_window, area, expected_fieldname, expected_row, expected_length):
+    """The main assertion test that runs for every row in Excel."""
+    print(f"\n--- Testing: {area} -> {expected_fieldname} ---")
+    
+    try:
+        # 1. Navigate
+        navigate_field(area, expected_fieldname, expected_row, expected_length, fads_window)
+        time.sleep(0.5)
+        
+        # 2. Extract Data (Returns list 'ls')
+        ls = safe_get_field_values(fads_window)
+        assert ls and len(ls) >= 8, f"❌ OCR returned incomplete list: {ls}"
+        
+        # 3. Transform the List based on your index rules
+        actual_fieldname = ls[1]
+        actual_length = ls[3]
+        raw_coords = ls[7]
+        
+        assert "," in raw_coords, f"❌ Expected comma in index 7, but got: '{raw_coords}'"
+        actual_row, actual_col = raw_coords.split(",")
+        
+        print(f"Captured -> Field: {actual_fieldname}, Row: {actual_row}, Col: {actual_col}, Len: {actual_length}")
+        
+        # 4. Assertions
+        assert actual_fieldname == expected_fieldname, f"Fieldname Mismatch! Excel: {expected_fieldname}, Screen: {actual_fieldname}"
+        assert str(actual_row) == str(expected_row), f"Row Mismatch! Excel: {expected_row}, Screen: {actual_row}"
+        assert str(actual_length) == str(expected_length), f"Length Mismatch! Excel: {expected_length}, Screen: {actual_length}"
+        
+        print(f"✅ Validation Passed for {expected_fieldname}")
+
+    finally:
+        # 5. Safe Backout (Ensures menu reset even if test fails)
+        print(f"Backing out to Main Menu...")
+        safe_type(fads_window, "{F9}", wait_time=0.2)
+        safe_type(fads_window, "{F9}", wait_time=0.2)
+        safe_type(fads_window, "Y", wait_time=0.5)
