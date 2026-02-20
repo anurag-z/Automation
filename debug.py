@@ -1,34 +1,42 @@
 import time
-
-import time
-from pywinauto import win32functions
+import win32gui
 
 def safe_type(window, keystrokes, wait_time=0.2):
     """
-    Checks if FADS is the active Windows application before typing. 
-    If you clicked away, it forces FADS back to the front first!
+    Acts as a Pause/Play button. If you click into another app, 
+    the script pauses and waits until FADS is the active window again before typing.
     """
     try:
-        # 1. Get the real, underlying window element
         real_window = window.wrapper_object()
+        fads_handle = real_window.handle
         
-        # 2. Check if the active window in Windows matches our FADS window
-        if win32functions.GetForegroundWindow() != real_window.handle:
-            print(f"⚠️ Focus lost! Forcing FADS back to the front before typing '{keystrokes}'...")
-            real_window.set_focus()
-            time.sleep(0.3) # Give Windows a split second to pull it forward
+        # --- THE FOCUS LOCK LOOP ---
+        attempts = 0
+        while win32gui.GetForegroundWindow() != fads_handle:
+            print(f"⚠️ Bot Paused: Waiting for FADS to be the active window to type '{keystrokes}'...")
             
-        # 3. Safe to type!
+            # Try to politely ask Windows to bring it to the front
+            try:
+                real_window.set_focus()
+            except:
+                pass
+                
+            time.sleep(1.0) # Wait 1 full second, then check again
+            
+            attempts += 1
+            if attempts > 15: # If it's blocked for 15 seconds, give up to prevent infinite loops
+                raise Exception("Focus timeout. Windows refused to bring FADS to the front.")
+
+        # The absolute split-second the loop confirms FADS is in front, we fire the keys!
         window.type_keys(keystrokes)
         
-        # 4. Optional standard pause after typing
+        # Optional pause after typing
         if wait_time > 0:
             time.sleep(wait_time)
             
     except Exception as e:
         print(f"❌ CRITICAL: Could not type '{keystrokes}'. Error: {e}")
         raise e
-
 
 def navigate_field(area, fieldname, row, column, window):
     try:
