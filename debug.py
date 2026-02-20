@@ -71,3 +71,65 @@ def navigate_field(area, fieldname, row, column, window):
         
     except Exception as e:
         print(f"[navigate_field] Error navigating to {area} -> {fieldname}: {e}")
+
+
+import time
+import win32gui
+
+def safe_get_field_values(window):
+    """
+    Waits until FADS is the active foreground window, then safely captures 
+    the screen and extracts the OCR data.
+    """
+    try:
+        real_window = window.wrapper_object()
+        fads_handle = real_window.handle
+        
+        # --- FOCUS LOCK FOR SCREENSHOT ---
+        attempts = 0
+        while win32gui.GetForegroundWindow() != fads_handle:
+            print("📸 OCR Paused: Waiting for FADS to be fully visible before taking screenshot...")
+            
+            try:
+                real_window.set_focus()
+            except:
+                pass
+                
+            time.sleep(1.0) # Check again in 1 second
+            
+            attempts += 1
+            if attempts > 15:
+                raise Exception("Focus timeout. Windows blocked FADS from coming to the front.")
+
+        # ---> CRITICAL PAUSE <---
+        # Windows has a brief animation when a window comes to the front. 
+        # If we screenshot instantly, the text might be blurry or half-transparent.
+        # We wait half a second for the UI to completely settle.
+        time.sleep(0.5) 
+
+        # ---------------------------------------------------------
+        # THE COAST IS CLEAR - TAKE THE PICTURE!
+        # ---------------------------------------------------------
+        print("Taking safe screenshot...")
+        
+        # Call your existing capture method here
+        screen_data = capture_and_read(window) 
+        
+        if not screen_data or screen_data.strip() == "":
+            print("❌ No data captured from screen.")
+            return []
+            
+        # Parse out the last line exactly as you had it
+        lines = screen_data.strip().split('\n')
+        last_line = lines[-1]
+        
+        # Split into your list
+        ls = last_line.split()
+        for i in ls:
+            print("Values", i)
+            
+        return ls
+
+    except Exception as e:
+        print(f"❌ Error extracting field values safely: {e}")
+        return []
