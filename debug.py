@@ -1,35 +1,33 @@
 import time
 
+import time
+from pywinauto import win32functions
+
 def safe_type(window, keystrokes, wait_time=0.2):
     """
-    Checks focus before sending ANY keystrokes. 
-    If focus is lost, it tries to restore it before typing.
+    Checks if FADS is the active Windows application before typing. 
+    If you clicked away, it forces FADS back to the front first!
     """
     try:
-        # 1. Check if the window currently has focus
-        if not window.has_focus():
-            print(f"⚠️ Focus lost! Restoring focus before typing: {keystrokes}")
-            window.set_focus()
-            time.sleep(0.3) # Give Windows time to bring it front
+        # 1. Get the real, underlying window element
+        real_window = window.wrapper_object()
+        
+        # 2. Check if the active window in Windows matches our FADS window
+        if win32functions.GetForegroundWindow() != real_window.handle:
+            print(f"⚠️ Focus lost! Forcing FADS back to the front before typing '{keystrokes}'...")
+            real_window.set_focus()
+            time.sleep(0.3) # Give Windows a split second to pull it forward
             
-            # Double-check if we actually got focus back
-            if not window.has_focus():
-                raise RuntimeError("OS blocked focus transfer.")
-
-        # 2. Safe to type!
+        # 3. Safe to type!
         window.type_keys(keystrokes)
         
-        # 3. Optional standard pause after typing
+        # 4. Optional standard pause after typing
         if wait_time > 0:
             time.sleep(wait_time)
             
-        return True
-
     except Exception as e:
-        # Stop the script or handle the error so it DOESN'T type in another app
-        print(f"❌ CRITICAL: Could not secure window focus to type '{keystrokes}'. Error: {e}")
-        raise e # We raise the error to immediately stop the bot from wreaking havoc
-
+        print(f"❌ CRITICAL: Could not type '{keystrokes}'. Error: {e}")
+        raise e
 
 
 def navigate_field(area, fieldname, row, column, window):
