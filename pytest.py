@@ -195,3 +195,74 @@ def test_fads_field_validation(fads_window, area, expected_fieldname, expected_r
         safe_type(fads_window, "{F9}", wait_time=0.2)
         safe_type(fads_window, "{F9}", wait_time=0.2)
         safe_type(fads_window, "Y", wait_time=0.5)
+
+
+
+from PIL import ImageChops, ImageStat, Image
+
+BASELINE_IMG_PATH = r"C:\Temp\fads_main_menu_baseline.png"
+
+def is_main_menu_active(window, tolerance=3.0):
+    """
+    Takes a live screenshot of the FADS window and compares it to the baseline Main Menu.
+    Returns True if the screens match within the allowed tolerance.
+    """
+    try:
+        if not os.path.exists(BASELINE_IMG_PATH):
+            print(f"❌ Baseline image missing at {BASELINE_IMG_PATH}")
+            return False
+            
+        # 1. Load baseline and convert to Grayscale ('L') to ignore minor color shifts
+        baseline = Image.open(BASELINE_IMG_PATH).convert('L')
+        
+        # 2. Capture the current FADS window
+        rect = window.rectangle()
+        current_screen = ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom)).convert('L')
+        
+        # Ensure sizes match (in case the window was resized slightly)
+        if baseline.size != current_screen.size:
+            current_screen = current_screen.resize(baseline.size)
+            
+        # 3. Calculate the difference
+        diff = ImageChops.difference(baseline, current_screen)
+        stat = ImageStat.Stat(diff)
+        mean_diff = stat.mean[0] # Get average difference of the grayscale band
+        
+        # 4. Check against tolerance
+        # If mean_diff is 0, they are identical. If it's < 3.0, it's a 99% match (ignoring cursor blinks).
+        if mean_diff < tolerance:
+            return True
+        else:
+            print(f"   [Visual Check] Not at menu. Difference score: {mean_diff:.2f}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ [is_main_menu_active] Error: {e}")
+        return False
+
+
+except Exception as e:
+        # --- PANIC RECOVERY WITH VISUAL VERIFICATION ---
+        print(f"\n⚠️ TEST FAILED: Initiating visual recovery to Main Menu...")
+        
+        max_attempts = 8
+        recovered = False
+        
+        for attempt in range(1, max_attempts + 1):
+            print(f"Attempt {attempt}/{max_attempts} to reach Main Menu...")
+            
+            # 1. Look at the screen
+            if is_main_menu_active(fads_window):
+                print(f"✅ Visual Confirmation: Reached Main Menu successfully!")
+                recovered = True
+                break
+                
+            # 2. If not at the menu, press ESC to back out one level
+            safe_type(fads_window, "{ESC}", wait_time=0.5)
+            
+        if not recovered:
+            print("❌ CRITICAL: App is stuck. Could not reach Main Menu after 8 attempts.")
+            # Optional: Add logic here to restart the FADS process entirely
+            
+        # Re-raise the error so Pytest properly marks this row as FAILED in your HTML/Excel report
+        raise e
