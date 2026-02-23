@@ -92,3 +92,73 @@ def read_bottom_status_bar(window):
     except Exception as e:
         print(f"❌ [read_bottom_status_bar] Failed: {e}")
         return ""
+
+
+
+
+def test_fads_field_validation(fads_window, task):
+    Length = task["Length"]
+    # ... (assume other vars like FieldName, Row, etc. are defined) ...
+    
+    try:
+        # 1. Navigate ONCE
+        navigate_field(area, FieldName, Row, Length, fads_window)
+        time.sleep(0.5)
+        
+        threshold_values = [180, 150, 140]
+        last_assertion_error = None
+        success = False
+        
+        # 🌟 2. THE SELF-HEALING OCR LOOP
+        for thresh in threshold_values:
+            try:
+                print(f"🔄 Trying OCR with threshold: {thresh}")
+                # MUST pass thresh to your function here:
+                ls = safe_get_field_values(fads_window, threshold=thresh) 
+                
+                assert ls and len(ls) >= 2, f"OCR returned incomplete list: {ls}"
+                
+                actual_fieldnum = ls[1]
+                actual_length = ls[3]
+                raw_coords = ls[-1]
+                
+                assert "," in raw_coords, f"Expected comma in index -1, but got: '{raw_coords}'"
+                actual_row, actual_col = raw_coords.split(",")
+                
+                print(f"Captured -> Field: {actual_fieldnum}, Row: {actual_row}, Col: {actual_col}, Len: {actual_length}")
+                
+                # Assertions
+                assert int(actual_fieldnum) == int(FieldNumber), f"Fieldname Mismatch! Excel: {FieldNumber}, Screen: {actual_fieldnum}"
+                assert int(actual_row) == int(Row), f"Row Mismatch! Excel: {Row}, Screen: {actual_row}"
+                assert int(actual_length) == int(Length), f"Length Mismatch! Excel: {Length}, Screen: {actual_length}"
+                
+                # 🎉 IF IT REACHES HERE, ALL ASSERTIONS PASSED!
+                print(f"✅ Validation Passed for {FieldName} using threshold {thresh}")
+                success = True
+                break  # Stop trying new thresholds and exit the loop!
+                
+            except AssertionError as a:
+                # Catch the failure, save it, and let the loop try the next number
+                print(f"⚠️ Threshold {thresh} failed: {a}")
+                last_assertion_error = a
+                
+        # ❌ 3. IF ALL THRESHOLDS FAILED
+        if not success:
+            print(f"❌ All thresholds {threshold_values} failed for this field.")
+            # Raising this sends it directly to your "except AssertionError as a:" block below
+            raise last_assertion_error 
+            
+        # 🧹 4. CLEANUP (Only happens if success == True)
+        safe_type(fads_window, "{ESC}")
+
+    # --- YOUR EXISTING ERROR HANDLING REMAINS EXACTLY THE SAME ---
+    except AssertionError as a:
+        print(f"Assertion failed please check {a}")
+        raise a
+    except Exception as e:
+        # --- PANIC RECOVERY WITH VISUAL VERIFICATION ---
+        print(f"\n TEST FAILED: Initiating visual recovery to Main Menu...")
+        
+        max_attempts = 2
+        recovered = False
+        # ... your existing recovery loop ...
