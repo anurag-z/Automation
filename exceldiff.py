@@ -1,89 +1,99 @@
 import pandas as pd
-import numpy as np 
-import gc
 
-# =================================================================
-# CONFIGURATION
-# =================================================================
-FILE_1_BASE = r'C:\Program Files\base_file.csv'        
-FILE_2_NEW  = r'C:\Path\To\file_with_extras.csv' 
-OUTPUT_FILE = 'Full_Data_Comparison_Report.xlsx'
-# =================================================================
+# --- Configuration Variables from C# ---
+FILE_1_BASE = r"C:\Test\FieldAnalysis_Combined_1040_18_Feb.xlsx"
+FILE_2_NEW = r"C:\Test\FieldAnalysis_Combined_1040_test.xlsx"
+OUTPUT_FILE = r"C:\Test\difference_report_Full_Compare.xlsx"
 
-def run_full_comparison():
+FILTERS = {
+    "Safe to Extend": ["Yes"],
+    "Action Required": ["Move and Extend (Non-Group)", "Extend Only (Non-Group)"]
+}
+
+CHECK_COL = "Length"
+
+def run_comparison():
     try:
-        print("🚀 Loading files...")
-        df1 = pd.read_csv(FILE_1_BASE, low_memory=False)
-        df2 = pd.read_csv(FILE_2_NEW, low_memory=False)
+        print("Loading and filtering data...")
+        # 1. Read Excel files
+        df1 = pd.read_excel(FILE_1_BASE)
+        df2 = pd.read_excel(FILE_2_NEW)
 
-        # 1. Capture original row numbers (Excel style: Index + 2)
-        df1['Base_Row_#'] = df1.index + 2
-        df2['New_Row_#'] = df2.index + 2
+        # 2. Apply Filters to df1 (Base)
+        for key, values in FILTERS.items():
+            if key in df1.columns:
+                # Keep rows where the column value is in our list of allowed values
+                df1 = df1[df1[key].astype(str).isin([str(v) for v in values])]
 
-        print("🔍 Comparing data across all rows...")
-        # Get all column names except our helper row numbers
-        cols = [c for c in df1.columns if c not in ['Base_Row_#', 'New_Row_#']]
+        # 3. Define match columns
+        match_cols = ["Area", "Screen Name", "Screen Number", "Field Name", "Level", "Row", "Column"]
         
-        # Merge finds exact matches anywhere in the file
-        df_all = pd.merge(df1, df2, on=cols, how='outer', indicator='Presence')
+        # Ensure match columns are strings to avoid type mismatch during merge
+        for col in match_cols:
+            if col in df1.columns and col in df2.columns:
+                df1[col] = df1[col].astype(str).fillna("")
+                df2[col] = df2[col].astype(str).fillna("")
+            else:
+                print(f"Warning: Match column '{col}' is missing from one of the files.")
 
-        # 2. Logic to categorize every row
-        conditions = [
-            (df_all['Presence'] == 'both') & (df_all['Base_Row_#'] == df_all['New_Row_#']),
-            (df_all['Presence'] == 'both') & (df_all['Base_Row_#'] != df_all['New_Row_#']),
-            (df_all['Presence'] == 'left_only'),
-            (df_all['Presence'] == 'right_only')
-        ]
-        choices = [
-            'COMMON: Same data, Same row',
-            'SHIFTED: Same data, Moved row',
-            'DELETED: Data in Base only',
-            'NEW: Data in New file only'
-        ]
+        # 4. Perform a Left Join to find matches
+        df2_with_idx = df2.copy()
+        df2_with_idx['Original row'] = df2_with_idx.index + 2 # +2 for header and 0-index offset
         
-        df_all['Comparison_Result'] = np.select(conditions, choices, default='Unknown')
+        merged = pd.merge(
+            df1, 
+            df2_with_idx, 
+            on=match_cols, 
+            how='left', 
+            suffixes=('_base', '') 
+        )
 
-        # --- NO FILTERING ---
-        # We keep all rows (COMMON, SHIFTED, DELETED, NEW)
-        df_final = df_all.sort_values(by=['New_Row_#', 'Base_Row_#'])
+        def process_row(row):
+            status = "COMMON"
+            change_logs = ""
+            
+            # Check for DELETED (No match found in df2)
+            if pd.isna(row.get('Original row')):
+                return pd.Series(["DELETED ROW", "", ""])
 
-        del df1, df2, df_all
-        gc.collect()
+            # Check for MODIFIED (Compare all columns present in df2)
+            changes = []
+            for col in df2.columns:
+                base_val = str(row.get(f"{col}_base", "")).strip()
+                new_val = str(row.get(col, "")).strip()
+                
+                # We only flag a change if the base value actually existed and is different
+                if pd.notna(row.get(f"{col}_base")) and base_val != new_val:
+                    changes.append(col)
+            
+            if changes:
+                status = "MODIFIED"
+                change_logs = f"Changed: {', '.join(changes)}"
+            
+            # Validation Check
+            if str(row.get(CHECK_COL, "")).strip() != "10":
+                status = "INVALID LENGTH"
+                
+            return pd.Series([status, change_logs, row['Original row']])
 
-        print(f"💾 Saving {len(df_final)} rows to Excel...")
-        writer = pd.ExcelWriter(OUTPUT_FILE, engine='xlsxwriter')
-        df_final.to_excel(writer, index=False, sheet_name='Full_Comparison')
+        # 5. Apply the logic across the dataframe
+        print("Comparing rows...")
+        merged[['Comparison_Status', 'Change_Logs', 'Original row']] = merged.apply(process_row, axis=1)
 
-        workbook  = writer.book
-        worksheet = writer.sheets['Full_Comparison']
+        # 6. Reorder columns to match your C# output structure
+        final_cols = ['Original row', 'Comparison_Status', 'Change_Logs'] + list(df2.columns)
+        # Ensure we only select columns that actually exist to prevent KeyError
+        final_cols = [col for col in final_cols if col in merged.columns]
+        final_df = merged[final_cols]
 
-        # Formatting Colors
-        green_fmt = workbook.add_format({'bg_color': '#C6EFCE', 'font_color': '#006100'}) # Common
-        blue_fmt  = workbook.add_format({'bg_color': '#DDEBF7', 'font_color': '#003366'}) # Shifted
-        red_fmt   = workbook.add_format({'bg_color': '#FFC7CE', 'font_color': '#9C0006'}) # Deleted
-        yel_fmt   = workbook.add_format({'bg_color': '#FFEB9C', 'font_color': '#9C6500'}) # New
-
-        last_col = len(df_final.columns) - 1
-        
-        # Apply Highlighting
-        worksheet.conditional_format(1, 0, len(df_final), last_col, {
-            'type': 'cell', 'criteria': 'containing', 'value': 'COMMON', 'format': green_fmt
-        })
-        worksheet.conditional_format(1, 0, len(df_final), last_col, {
-            'type': 'cell', 'criteria': 'containing', 'value': 'SHIFTED', 'format': blue_fmt
-        })
-        worksheet.conditional_format(1, 0, len(df_final), last_col, {
-            'type': 'cell', 'criteria': 'containing', 'value': 'DELETED', 'format': red_fmt
-        })
-        worksheet.conditional_format(1, 0, len(df_final), last_col, {
-            'type': 'cell', 'criteria': 'containing', 'value': 'NEW', 'format': yel_fmt
-        })
-
-        writer.close()
-        print(f"✅ DONE! Full report saved: {OUTPUT_FILE}")
+        # 7. Save to Excel
+        print(f"Saving report to {OUTPUT_FILE}...")
+        final_df.to_excel(OUTPUT_FILE, index=False)
+        print("Process Complete!")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"X Error: {str(e)}")
 
+# Execute the script
 if __name__ == "__main__":
-    run_full_comparison()
+    run_comparison()
