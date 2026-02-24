@@ -187,30 +187,40 @@ def run_comparison():
         # 6. Apply Highlighting logic
         print("Applying visual highlights...")
         def highlight_cells(row):
-            styles = [''] * len(row)
+            # Create a Series of empty styles mapped to exact column headers
+            styles = pd.Series([''] * len(row), index=row.index)
             status = row.get('Comparison_Status', '')
             
             if status == 'MODIFIED':
                 logs = str(row.get('Change_Logs', ''))
                 if logs.startswith('Changed: '):
+                    # Extract the list of columns that changed
                     changed_cols = logs.replace('Changed: ', '').split(', ')
                     for col in changed_cols:
-                        if col in row.index:
-                            idx = row.index.get_loc(col)
-                            styles[idx] = 'background-color: #FF9999'
+                        if col in styles.index:
+                            # Color ONLY the specific modified cell in this row red
+                            styles[col] = 'background-color: #FF9999'
+                            
             elif status == 'DELETED ROW':
-                styles = ['background-color: #E0E0E0'] * len(row)
+                # Color the entire row grey
+                styles[:] = 'background-color: #E0E0E0'
+                
             elif status == 'INVALID LENGTH':
-                idx = row.index.get_loc('Comparison_Status')
-                styles[idx] = 'background-color: #FFFF99'
+                # Color ONLY the status cell yellow
+                styles['Comparison_Status'] = 'background-color: #FFFF99'
+                
             return styles
 
+        # Apply the style function
         styled_df = final_df.style.apply(highlight_cells, axis=1)
 
         # 7. Save to Excel
         print(f"Saving formatted report to {OUTPUT_FILE}...")
+        # Remember to keep your OUTPUT_FILE as a .xlsx extension!
         styled_df.to_excel(OUTPUT_FILE, index=False, engine='openpyxl')
         print("Process Complete!")
+
+    
 
     except Exception as e:
         print(f"X Error: {str(e)}")
