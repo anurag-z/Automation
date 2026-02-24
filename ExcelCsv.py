@@ -97,3 +97,123 @@ def run_comparison():
 
 if __name__ == "__main__":
     run_comparison()
+
+
+import pandas as pd
+
+# --- Configuration ---
+FILE_1_BASE = r"C:\Test\FieldAnalysis_Combined_1040_18_Feb.csv"
+FILE_2_NEW = r"C:\Test\FieldAnalysis_Combined_1040_test.csv"
+OUTPUT_FILE = r"C:\Test\difference_report_Full_Compare.xlsx"
+
+FILTERS = {
+    "Safe to Extend": ["Yes"],
+    "Action Required": ["Move and Extend (Non-Group)", "Extend Only (Non-Group)"]
+}
+CHECK_COL = "Length"
+
+# --- NEW: Define the range to compare (0-based indexing) ---
+# Example: 0 to 500 will process the first 500 records AFTER filtering.
+START_RECORD = 0
+END_RECORD = 500  # Set to None if you want to process to the very end: END_RECORD = None
+
+def run_comparison():
+    try:
+        print("Loading CSV data...")
+        df1 = pd.read_csv(FILE_1_BASE, dtype=str)
+        df2 = pd.read_csv(FILE_2_NEW, dtype=str)
+
+        # 1. Apply Filters to df1
+        print("Applying filters...")
+        for key, values in FILTERS.items():
+            if key in df1.columns:
+                df1 = df1[df1[key].isin([str(v) for v in values])]
+
+        # --- NEW: Apply the Range Slice AFTER filtering ---
+        total_filtered = len(df1)
+        print(f"Total Base records after filtering: {total_filtered}")
+        
+        # Slice the dataframe. If END_RECORD is larger than total_filtered, pandas handles it safely.
+        df1 = df1.iloc[START_RECORD:END_RECORD]
+        actual_end = min(END_RECORD if END_RECORD else total_filtered, total_filtered)
+        print(f"Comparing a range of {len(df1)} records (Index {START_RECORD} to {actual_end})...")
+
+        # 2. Define match columns and prep for merge
+        match_cols = ["Area", "Screen Name", "Screen Number", "Field Name", "Level", "Row", "Column"]
+        for col in match_cols:
+            if col in df1.columns and col in df2.columns:
+                df1[col] = df1[col].fillna("")
+                df2[col] = df2[col].fillna("")
+
+        df2_with_idx = df2.copy()
+        df2_with_idx['Original row'] = df2_with_idx.index + 2 
+        
+        # 3. Perform Left Join
+        merged = pd.merge(df1, df2_with_idx, on=match_cols, how='left', suffixes=('_base', ''))
+
+        # 4. Row processing logic
+        def process_row(row):
+            status = "COMMON"
+            change_logs = ""
+            
+            if pd.isna(row.get('Original row')):
+                return pd.Series(["DELETED ROW", "", ""])
+
+            changes = []
+            for col in df2.columns:
+                base_val = str(row.get(f"{col}_base", "")).strip()
+                new_val = str(row.get(col, "")).strip()
+                
+                if pd.notna(row.get(f"{col}_base")) and base_val != new_val:
+                    changes.append(col)
+            
+            if changes:
+                status = "MODIFIED"
+                change_logs = f"Changed: {', '.join(changes)}"
+            
+            if str(row.get(CHECK_COL, "")).strip() != "10":
+                status = "INVALID LENGTH"
+                
+            return pd.Series([status, change_logs, row['Original row']])
+
+        print("Checking for differences...")
+        merged[['Comparison_Status', 'Change_Logs', 'Original row']] = merged.apply(process_row, axis=1)
+
+        # 5. Build Final DataFrame
+        final_cols = ['Original row', 'Comparison_Status', 'Change_Logs'] + list(df2.columns)
+        final_cols = [col for col in final_cols if col in merged.columns]
+        final_df = merged[final_cols]
+
+        # 6. Apply Highlighting logic
+        print("Applying visual highlights...")
+        def highlight_cells(row):
+            styles = [''] * len(row)
+            status = row.get('Comparison_Status', '')
+            
+            if status == 'MODIFIED':
+                logs = str(row.get('Change_Logs', ''))
+                if logs.startswith('Changed: '):
+                    changed_cols = logs.replace('Changed: ', '').split(', ')
+                    for col in changed_cols:
+                        if col in row.index:
+                            idx = row.index.get_loc(col)
+                            styles[idx] = 'background-color: #FF9999'
+            elif status == 'DELETED ROW':
+                styles = ['background-color: #E0E0E0'] * len(row)
+            elif status == 'INVALID LENGTH':
+                idx = row.index.get_loc('Comparison_Status')
+                styles[idx] = 'background-color: #FFFF99'
+            return styles
+
+        styled_df = final_df.style.apply(highlight_cells, axis=1)
+
+        # 7. Save to Excel
+        print(f"Saving formatted report to {OUTPUT_FILE}...")
+        styled_df.to_excel(OUTPUT_FILE, index=False, engine='openpyxl')
+        print("Process Complete!")
+
+    except Exception as e:
+        print(f"X Error: {str(e)}")
+
+if __name__ == "__main__":
+    run_comparison()
