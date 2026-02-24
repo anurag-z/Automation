@@ -88,19 +88,34 @@ def run_comparison():
         # 7. Apply Highlighting logic
         print("Applying visual highlights...")
         def highlight_cells(row):
-            # Create a Series of empty styles mapped to exact column headers
             styles = pd.Series([''] * len(row), index=row.index)
             status = row.get('Comparison_Status', '')
             logs = str(row.get('Change_Logs', ''))
             
-            # Highlight changed columns red, regardless of the final status
+            # Get the current value of the Length column from the 2nd Excel
+            length_val = str(row.get(CHECK_COL, "")).strip()
+            
+            # 1. Process all columns that registered a change
             if logs.startswith('Changed: '):
                 changed_cols = logs.replace('Changed: ', '').split(', ')
                 for col in changed_cols:
                     if col in styles.index:
-                        styles[col] = 'background-color: #FF9999' # Light Red
-                        
-            # Highlight specific row statuses
+                        if col == CHECK_COL:
+                            # If 'Length' changed, color it Green if it is 12, otherwise Red
+                            if length_val == '12':
+                                styles[col] = 'background-color: #99FF99' # Light Green
+                            else:
+                                styles[col] = 'background-color: #FF9999' # Light Red
+                        else:
+                            # Any other changed column gets colored Red
+                            styles[col] = 'background-color: #FF9999' # Light Red
+                            
+            # 2. What if 'Length' failed to update at all? 
+            # If it didn't change, it won't be in the logs, but it's still wrong.
+            if CHECK_COL in styles.index and length_val != '12' and status != 'DELETED ROW':
+                styles[CHECK_COL] = 'background-color: #FF9999' # Force Red
+
+            # 3. Highlight specific row statuses
             if status == 'DELETED ROW':
                 styles[:] = 'background-color: #E0E0E0' # Grey row
             elif status == 'INVALID LENGTH':
