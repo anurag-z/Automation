@@ -1,10 +1,10 @@
 import pandas as pd
 
 # --- Configuration ---
-# 1. Input the OUTPUT file from the previous script (to get the list of deleted rows)
+# 1. Input the OUTPUT file from your full comparison script
 PREVIOUS_OUTPUT_FILE = r"C:\Test\Python_excel\difference_report_Full_Compare.xlsx"
 
-# 2. Input the ORIGINAL Test CSV (where we look for the missing rows)
+# 2. Input the ORIGINAL Test CSV
 FILE_2_NEW = r"C:\Test\FieldAnalysis_Combined_1040_test.csv"
 
 # 3. Output for this analysis
@@ -28,69 +28,89 @@ def investigate_deleted_rows():
         df_test = pd.read_csv(FILE_2_NEW, dtype=str).fillna("")
 
         # --- THE RELAXED MATCH STRATEGY ---
-        # We assume 'Row', 'Column', and 'Level' might have changed.
-        # So we only match on the "Identity" of the field.
-        # ADJUST THIS LIST if 'Screen Number' is also changing!
-        relaxed_match_cols = ["Area", "Screen Name", "Screen Number", "Field Name"]
+        # Added 'Field Number' as requested to ensure a highly accurate search!
+        relaxed_match_cols = ["Area", "Screen Name", "Screen Number", "Field Name", "Field Number"]
         
         print(f"Attempting to find rows using only: {relaxed_match_cols}...")
 
-        # Prepare a list to store results
         analysis_results = []
 
-        # Iterate through each "Deleted" row
         for index, deleted_row in df_deleted.iterrows():
             
             # 1. Build a filter for the Test file based on the Relaxed Columns
-            # (This acts like a VLOOKUP on just the 4 identity columns)
             condition = pd.Series([True] * len(df_test))
             for col in relaxed_match_cols:
-                val = str(deleted_row[col]).strip()
-                condition &= (df_test[col].str.strip() == val)
+                # Get value from the deleted row (checking for '_base' suffix just in case)
+                val = str(deleted_row.get(col, "")).strip()
+                if not val and f"{col}_base" in deleted_row:
+                    val = str(deleted_row.get(f"{col}_base", "")).strip()
+                
+                # Apply the condition if the column exists in the Test file
+                if col in df_test.columns:
+                    condition &= (df_test[col].str.strip() == val)
             
             # 2. Find matches
             matches = df_test[condition]
-            
             result_row = deleted_row.copy()
             
+            # --- CAPTURE BASE LENGTH ---
+            # In the diff file, the original base columns usually get a '_base' suffix
+            base_length = str(deleted_row.get('Length_base', deleted_row.get('Length', ''))).strip()
+            result_row['Base_Length'] = base_length
+
             if len(matches) > 0:
-                # MATCH FOUND! The row wasn't deleted, it just moved/changed.
-                match = matches.iloc[0] # Take the first match found
+                # MATCH FOUND! 
+                match = matches.iloc[0] 
                 
                 result_row['Investigation_Status'] = "FOUND (MOVED/CHANGED)"
+                result_row['original row_test'] = match.name + 2  # Excel row number in the test file
                 
-                # Check exactly WHY it failed the original strict match
+                # --- CAPTURE NEW LENGTH ---
+                result_row['New_Length'] = str(match.get('Length', '')).strip() 
+                
+                # Check exactly WHY it failed the strict match (e.g., Row or Level changed)
                 changes = []
-                strict_cols_to_check = ["Level", "Row", "Column"] # The ones we ignored
+                strict_cols_to_check = ["Level", "Row", "Column"] 
                 
                 for col in strict_cols_to_check:
-                    old_val = str(deleted_row[col]).strip()
-                    new_val = str(match[col]).strip()
+                    old_val = str(deleted_row.get(col, "")).strip()
+                    if not old_val and f"{col}_base" in deleted_row:
+                        old_val = str(deleted_row.get(f"{col}_base", "")).strip()
+                        
+                    new_val = str(match.get(col, "")).strip()
                     if old_val != new_val:
                         changes.append(f"{col}: '{old_val}' -> '{new_val}'")
-                        # Add the new value to the report for visibility
                         result_row[f"New_{col}"] = new_val
                 
                 result_row['Reason_for_Mismatch'] = "; ".join(changes)
-                result_row['New_Test_Row_Index'] = match.name + 2 # +2 for Excel row number
 
             else:
-                # STILL NOT FOUND? It was truly deleted.
+                # STILL NOT FOUND
                 result_row['Investigation_Status'] = "TRULY DELETED"
-                result_row['Reason_for_Mismatch'] = "Field ID not found in Test File"
+                result_row['Reason_for_Mismatch'] = "Field not found in Test File (even with relaxed match)"
+                result_row['original row_test'] = "N/A"
+                result_row['New_Length'] = "N/A"
             
             analysis_results.append(result_row)
 
         # --- Create DataFrame and Save ---
         df_analysis = pd.DataFrame(analysis_results)
         
-        # Organize columns nicely
-        cols_to_show = ['original row_base', 'Investigation_Status', 'Reason_for_Mismatch', 'New_Test_Row_Index'] + relaxed_match_cols + ['Level', 'Row', 'Column']
+        # Organize columns to put the new info front and center
+        cols_to_show = [
+            'original row_base', 
+            'original row_test', 
+            'Investigation_Status', 
+            'Reason_for_Mismatch',
+            'Base_Length',
+            'New_Length'
+        ] + relaxed_match_cols + ['Level', 'Row', 'Column']
+        
         # Add any "New_..." columns that were created dynamically
-        extra_cols = [c for c in df_analysis.columns if c.startswith("New_") and c != 'New_Test_Row_Index']
+        extra_cols = [c for c in df_analysis.columns if c.startswith("New_") and c not in cols_to_show]
         cols_to_show += extra_cols
         
-        # Filter to ensure columns exist
+        # Filter to ensure columns exist in our final dataframe
         final_cols = [c for c in cols_to_show if c in df_analysis.columns]
         
         df_final = df_analysis[final_cols]
@@ -99,14 +119,15 @@ def investigate_deleted_rows():
         
         # Highlight logic (Green = Found, Red = Truly Deleted)
         def highlight_status(row):
-            styles = [''] * len(row)
+            styles = pd.Series([''] * len(row), index=row.index)
             if row['Investigation_Status'] == "TRULY DELETED":
-                return ['background-color: #FF9999'] * len(row) # Red
+                styles[:] = 'background-color: #FF9999' # Red
             else:
-                return ['background-color: #99FF99'] * len(row) # Green
+                styles[:] = 'background-color: #99FF99' # Green
+            return styles
                 
-        df_final.style.apply(highlight_status, axis=1).to_excel(OUTPUT_FILE, index=False)
-        print("Done! Check the Excel file to see where your data went.")
+        df_final.style.apply(highlight_status, axis=1).to_excel(OUTPUT_FILE, index=False, engine='openpyxl')
+        print("Done! Process Complete.")
 
     except Exception as e:
         print(f"Error: {e}")
