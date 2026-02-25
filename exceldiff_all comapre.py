@@ -7,6 +7,11 @@ OUTPUT_FILE = r"C:\Test\Python_excel\difference_report_Full_Compare.xlsx"
 
 CHECK_COL = "Length"
 
+# --- Define the range to compare (0-based indexing) ---
+# Example: 0 to 500. To process everything, set END_RECORD = None
+START_RECORD = 0
+END_RECORD = 500 
+
 def run_comparison():
     try:
         print("Loading CSV data (No filters applied)...")
@@ -14,19 +19,26 @@ def run_comparison():
         df1 = pd.read_csv(FILE_1_BASE, dtype=str).fillna("")
         df2 = pd.read_csv(FILE_2_NEW, dtype=str).fillna("")
 
-        # 1. Capture original row numbers (adding 2 for Excel header & 0-indexing)
+        # 1. Capture original row numbers before slicing (adding 2 for Excel header & 0-indexing)
         df1['original row_base'] = df1.index + 2
         df2['original row_test'] = df2.index + 2
 
-        # 2. Define match columns
+        # 2. Apply the Range Slice to the Base file
+        total_base = len(df1)
+        actual_end = min(END_RECORD if END_RECORD is not None else total_base, total_base)
+        
+        # Slice df1 based on the start and end records
+        df1 = df1.iloc[START_RECORD:actual_end]
+
+        # 3. Define match columns
         match_cols = ["Area", "Screen Name", "Screen Number", "Field Name", "Level", "Row", "Column"]
         
-        print(f"Comparing {len(df1)} Base records against {len(df2)} Test records...")
+        print(f"Comparing {len(df1)} Base records (Index {START_RECORD} to {actual_end - 1}) against {len(df2)} Test records...")
 
-        # 3. Perform Left Join (This replaces the C# nested 'for' loop instantly)
+        # 4. Perform Left Join (This replaces the C# nested 'for' loop instantly)
         merged = pd.merge(df1, df2, on=match_cols, how='left', suffixes=('_base', ''))
 
-        # 4. Row processing logic
+        # 5. Row processing logic
         def process_row(row):
             status = "COMMON"
             change_logs = ""
@@ -37,6 +49,7 @@ def run_comparison():
 
             # Check for MODIFIED columns
             changes = []
+            # Iterate through columns from df2 to find differences
             for col in df2.columns:
                 # We don't compare the match columns or the tracking column
                 if col in match_cols or col == 'original row_test':
@@ -63,18 +76,17 @@ def run_comparison():
         print("Checking for differences...")
         merged[['Comparison_Status', 'Change_Logs']] = merged.apply(process_row, axis=1)
 
-        # 5. Build Final DataFrame 
+        # 6. Build Final DataFrame 
         # Ensure our tracking and status columns are perfectly ordered at the front
         final_cols = ['original row_base', 'original row_test', 'Comparison_Status', 'Change_Logs'] + list(df2.columns)
         
-        # Remove the tracking column from the end since we moved it to the front
+        # Remove columns that didn't make it into merged, then deduplicate
         final_cols = [col for col in final_cols if col in merged.columns]
-        # De-duplicate column list just in case
         final_cols = list(dict.fromkeys(final_cols)) 
         
         final_df = merged[final_cols]
 
-        # 6. Apply Highlighting logic
+        # 7. Apply Highlighting logic
         print("Applying visual highlights...")
         def highlight_cells(row):
             styles = pd.Series([''] * len(row), index=row.index)
@@ -113,7 +125,7 @@ def run_comparison():
 
         styled_df = final_df.style.apply(highlight_cells, axis=1)
 
-        # 7. Save to Excel
+        # 8. Save to Excel
         print(f"Saving formatted report to {OUTPUT_FILE}...")
         styled_df.to_excel(OUTPUT_FILE, index=False, engine='openpyxl')
         print("Process Complete!")
