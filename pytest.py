@@ -266,41 +266,73 @@ except Exception as e:
             
         # Re-raise the error so Pytest properly marks this row as FAILED in your HTML/Excel report
         raise e
+import pytest
+
+# Your exact filter dictionary
+FILTERS = {
+    "Safe to Extend": ["Yes"],
+    "Action Required": ["Move and Extend (Non-Group)", "Extend Only (Non-Group)"]
+}
 
 # ==========================================
-# 1. PYTEST COLLECTION PHASE
+# 1. HELPER FUNCTIONS
 # ==========================================
-all_tasks = get_excel_tasks()
-
 def is_blank_field(val):
     """Safely checks if an Excel cell is empty, None, or a Pandas NaN."""
     if val is None:
         return True
-    
-    # Convert to string, strip spaces, and make lowercase
     str_val = str(val).strip().lower()
-    
-    # Check if it's empty OR if Pandas turned it into 'nan'
     if str_val == "" or str_val == "nan":
         return True
-        
     return False
 
-# Filter for Flow 1 (Has a valid Field Name)
-# Keep the task if is_blank_field returns False
+def passes_business_filters(task):
+    """Checks if a row meets all criteria in the FILTERS dictionary."""
+    for column_name, allowed_values in FILTERS.items():
+        # Get the value from the Excel row (default to empty string if missing)
+        raw_val = task.get(column_name, "")
+        
+        # Convert to string and strip spaces (Protects against Excel typos like "Yes ")
+        clean_val = str(raw_val).strip() if raw_val is not None else ""
+        
+        # If the cleaned Excel value is NOT in our list of allowed values, reject the row
+        if clean_val not in allowed_values:
+            return False
+            
+    # If it survived the loop, it matches all filters!
+    return True
+
+# ==========================================
+# 2. PYTEST COLLECTION PHASE
+# ==========================================
+# Step A: Load ALL data
+all_tasks = get_excel_tasks()
+
+# Step B: Apply the Business Filters first
+# This throws away any rows that aren't "Yes" and "Move/Extend"
+filtered_tasks = [task for task in all_tasks if passes_business_filters(task)]
+
+# Step C: Split the surviving rows into Flow 1 (Has Field Name)
 flow1_tasks = [
-    task for task in all_tasks 
+    task for task in filtered_tasks 
     if not is_blank_field(task.get("Field Name"))
 ]
 
-# Filter for Flow 2 (Field Name is Blank / NaN)
-# Keep the task if is_blank_field returns True
+# Step D: Split the surviving rows into Flow 2 (Blank Field Name)
 flow2_tasks = [
-    task for task in all_tasks 
+    task for task in filtered_tasks 
     if is_blank_field(task.get("Field Name"))
 ]
 
 # ==========================================
-# 2. TEST DEFINITIONS 
+# 3. TEST DEFINITIONS 
 # ==========================================
-# ... (your @pytest.mark.parametrize blocks go here) ...
+@pytest.mark.parametrize("task", flow1_tasks, ids=lambda t: f"Flow1_Row{t.get('Row')}")
+def test_fads_field_validation(fads_window, task):
+    # Your standard validation flow...
+    pass
+
+@pytest.mark.parametrize("task", flow2_tasks, ids=lambda t: f"Flow2_Row{t.get('Row')}")
+def test_fads_blank_field_flow(fads_window, task):
+    # Your alternate blank field flow...
+    pass
