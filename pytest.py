@@ -266,3 +266,43 @@ except Exception as e:
             
         # Re-raise the error so Pytest properly marks this row as FAILED in your HTML/Excel report
         raise e
+
+
+import pytest
+import time
+# ... your other imports like safe_get_field_values, etc. ...
+
+# ==========================================
+# 1. PYTEST COLLECTION PHASE (Runs First)
+# ==========================================
+# Pytest runs this immediately when you type 'pytest' in the console, 
+# BEFORE any tests start and BEFORE your fads_window fixture loads!
+
+all_tasks = get_excel_tasks()
+
+# Filter for tests that DO have a Field Name
+flow1_tasks = [
+    task for task in all_tasks 
+    if task.get("Field Name") is not None and str(task["Field Name"]).strip() != ""
+]
+
+# Filter for tests that DO NOT have a Field Name (Blank)
+flow2_tasks = [
+    task for task in all_tasks 
+    if task.get("Field Name") is None or str(task["Field Name"]).strip() == ""
+]
+
+# ==========================================
+# 2. TEST DEFINITIONS 
+# ==========================================
+
+# Pytest uses the lists we just created to generate the test cases!
+@pytest.mark.parametrize("task", flow1_tasks, ids=lambda t: f"Flow1_{t['Area']}")
+def test_fads_field_validation(fads_window, task):
+    # This runs later, during the Execution Phase
+    pass
+
+@pytest.mark.parametrize("task", flow2_tasks, ids=lambda t: f"Flow2_Row{t['Row']}")
+def test_fads_blank_field_flow(fads_window, task):
+    # This also runs later, during the Execution Phase
+    pass
