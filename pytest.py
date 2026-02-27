@@ -336,3 +336,122 @@ def test_fads_field_validation(fads_window, task):
 def test_fads_blank_field_flow(fads_window, task):
     # Your alternate blank field flow...
     pass
+
+
+@pytest.mark.parametrize("task", flow1_tasks, ids=lambda task: f"{task.get('Area', 'NoArea')}_{task.get('Screen Name', 'NoScreen')}_{task.get('Field Name', 'NoField')}")
+def test_Fads_Field_Validation_Having_Field_Name(fads_window, task):
+    """The main assertion test that runs for every row in Excel."""
+    
+    area = task["Area"]
+    FieldName = task["Field Name"]
+    FieldNumber = task["Field Number"]
+    Row = task["Row"]
+    Length = 10 # task["Length"]
+    
+    # We create a dictionary to hold our extracted data once OCR finds it
+    extracted_data = None 
+
+    # =========================================================
+    # PHASE 1 & 2: AUTOMATION & EXTRACTION (The Eyes)
+    # =========================================================
+    try:
+        # 1. Navigate
+        navigate_field(area, FieldName, Row, Length, fads_window)
+        time.sleep(0.2)
+        
+        threshold_values = [180, 150, 140]
+        
+        # 2. Extract Data (No business assertions allowed here!)
+        for thresh in threshold_values:
+            try:
+                print(f"🔍 Trying OCR with threshold: {thresh}")
+                ls = safe_get_field_values(fads_window, Threshold=thresh)
+                
+                # Check if OCR returned garbage (Raises ValueError, NOT AssertionError)
+                if not ls or len(ls) < 2:
+                    raise ValueError(f"OCR returned incomplete list: {ls}")
+                
+                raw_coords = ls[-1]
+                if "," not in raw_coords:
+                    raise ValueError(f"Expected comma in index -1, but got: {raw_coords}")
+                
+                actual_fieldnum = ls[1]
+                actual_row, actual_col = raw_coords.split(",")
+                
+                actual_length = None
+                for token in ls[2:-1]:
+                    if token.isdigit():
+                        actual_length = token
+                        break
+                        
+                if actual_length is None:
+                    raise ValueError(f"Could not find length number in OCR results: {ls}")
+                
+                # If we reach this line, the OCR successfully read real data!
+                # Save it, print it, and break out of the threshold loop immediately.
+                extracted_data = {
+                    "fieldnum": actual_fieldnum,
+                    "row": actual_row,
+                    "length": actual_length
+                }
+                print(f"✅ OCR Extracted -> Field: {actual_fieldnum}, Row: {actual_row}, Len: {actual_length}")
+                break 
+                
+            except ValueError as ve:
+                # Catch bad OCR reads, let the loop try the next threshold
+                print(f"⚠️ Threshold {thresh} failed OCR extraction: {ve}")
+
+        # 3. Verify OCR succeeded at least once
+        if not extracted_data:
+            raise RuntimeError(f"❌ OCR completely failed to read the screen with thresholds {threshold_values}.")
+            
+        # 4. Cleanup
+        safe_type(fads_window, "{ESC}")
+
+    except Exception as e:
+        # --- PANIC RECOVERY ---
+        # This ONLY triggers if Navigation crashes or if ALL OCR thresholds fail.
+        print(f"\n🛑 AUTOMATION FAILED: Initiating visual recovery to Main Menu... Error: {e}")
+        
+        max_attempts = 2
+        recovered = False
+        
+        for attempt in range(1, max_attempts + 1):
+            print(f"Attempt {attempt}/{max_attempts} to reach Main Menu...")
+            if is_main_menu_active(fads_window):
+                print("Visual Confirmation: Reached Main Menu successfully!")
+                recovered = True
+                break
+            safe_type(fads_window, "{ESC}", wait_time=0.5)
+            
+        if not recovered:
+            print("CRITICAL: App is stuck. Could not reach Main Menu after 2 attempts.")
+            
+        # Re-raise the error so Pytest marks it as an automation failure
+        raise e
+
+    # =========================================================
+    # PHASE 3: BUSINESS VALIDATION (The Brain)
+    # =========================================================
+    # If the script reaches this line, the bot successfully navigated and read the screen.
+    # Now we compare the extracted DOS data against the Excel data!
+
+    error_messages = []
+    
+    if int(extracted_data["fieldnum"]) != int(FieldNumber):
+        error_messages.append(f"Fieldname Mismatch! Excel: {FieldNumber}, Screen: {extracted_data['fieldnum']}")
+        
+    if int(extracted_data["row"]) != int(Row):
+        error_messages.append(f"Row Mismatch! Excel: {Row}, Screen: {extracted_data['row']}")
+        
+    if int(extracted_data["length"]) != int(Length):
+        error_messages.append(f"Length Mismatch! Excel: {Length}, Screen: {extracted_data['length']}")
+
+    # If ANY errors were found, fail the test immediately!
+    if error_messages:
+        # This joins all errors together so you see exactly what failed in the Pytest report
+        failure_reason = " | ".join(error_messages)
+        pytest.fail(f"❌ Business Validation Failed: {failure_reason}")
+
+    # If no errors were added to the list, the test is perfect!
+    print(f"🟢 Validation Passed for {FieldName}!")
