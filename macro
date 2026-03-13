@@ -1,0 +1,110 @@
+Sub FindAndHighlightMissingBothWays()
+    Dim ws As Worksheet
+    Dim missingSheet As Worksheet
+    Dim lastRow1 As Long, lastRow2 As Long
+    Dim dict1 As Object, dict2 As Object
+    Dim i As Long
+    Dim key As String
+    Dim missingRow1 As Long, missingRow2 As Long
+    
+    ' Set the active sheet where your data is
+    Set ws = ActiveSheet
+    
+    ' Create two dictionaries for fast two-way comparison
+    Set dict1 = CreateObject("Scripting.Dictionary")
+    Set dict2 = CreateObject("Scripting.Dictionary")
+    
+    ' Find the last row of data for both sets
+    lastRow1 = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    lastRow2 = ws.Cells(ws.Rows.Count, "E").End(xlUp).Row
+    
+    ' Step 1: Store Set 1 (Cols A, B, C) into dictionary 1
+    For i = 2 To lastRow1
+        key = Trim(ws.Cells(i, 1).Value) & "|" & Trim(ws.Cells(i, 2).Value) & "|" & Trim(ws.Cells(i, 3).Value)
+        If Not dict1.exists(key) Then dict1.Add key, True
+    Next i
+    
+    ' Step 2: Store Set 2 (Cols E, F, G) into dictionary 2
+    For i = 2 To lastRow2
+        key = Trim(ws.Cells(i, 5).Value) & "|" & Trim(ws.Cells(i, 6).Value) & "|" & Trim(ws.Cells(i, 7).Value)
+        If Not dict2.exists(key) Then dict2.Add key, True
+    Next i
+    
+    ' Step 3: Setup the "Missing Data" report sheet
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    Sheets("Missing Data").Delete ' Deletes old sheet if it exists
+    Application.DisplayAlerts = True
+    On Error GoTo 0
+    
+    Set missingSheet = ThisWorkbook.Sheets.Add(After:=ws)
+    missingSheet.Name = "Missing Data"
+    
+    ' Headers for Items missing from Set 2
+    missingSheet.Cells(1, 1).Value = "Missing from Set 2 (Found in Set 1)"
+    missingSheet.Range("A1:C1").Merge
+    missingSheet.Cells(2, 1).Value = "Area"
+    missingSheet.Cells(2, 2).Value = "Screen Number"
+    missingSheet.Cells(2, 3).Value = "Field Number"
+    
+    ' Headers for Items missing from Set 1
+    missingSheet.Cells(1, 5).Value = "Missing from Set 1 (Found in Set 2)"
+    missingSheet.Range("E1:G1").Merge
+    missingSheet.Cells(2, 5).Value = "Area"
+    missingSheet.Cells(2, 6).Value = "Screen Number"
+    missingSheet.Cells(2, 7).Value = "Field Number"
+    
+    missingSheet.Range("A1,E1").Font.Bold = True
+    missingSheet.Range("A2:C2,E2:G2").Font.Bold = True
+    
+    missingRow1 = 3
+    missingRow2 = 3
+    
+    ' Step 4: Compare Set 1 against Set 2
+    For i = 2 To lastRow1
+        key = Trim(ws.Cells(i, 1).Value) & "|" & Trim(ws.Cells(i, 2).Value) & "|" & Trim(ws.Cells(i, 3).Value)
+        
+        If Not dict2.exists(key) Then
+            ' Highlight missing items in Red on original sheet
+            ws.Range(ws.Cells(i, 1), ws.Cells(i, 3)).Interior.Color = RGB(255, 199, 206)
+            
+            ' Copy to missing sheet (Left Side)
+            missingSheet.Cells(missingRow1, 1).Value = ws.Cells(i, 1).Value
+            missingSheet.Cells(missingRow1, 2).Value = ws.Cells(i, 2).Value
+            missingSheet.Cells(missingRow1, 3).Value = ws.Cells(i, 3).Value
+            missingRow1 = missingRow1 + 1
+        Else
+            ' Clear color if it's no longer missing
+            ws.Range(ws.Cells(i, 1), ws.Cells(i, 3)).Interior.ColorIndex = xlNone
+        End If
+    Next i
+    
+    ' Step 5: Compare Set 2 against Set 1
+    For i = 2 To lastRow2
+        key = Trim(ws.Cells(i, 5).Value) & "|" & Trim(ws.Cells(i, 6).Value) & "|" & Trim(ws.Cells(i, 7).Value)
+        
+        If Not dict1.exists(key) Then
+            ' Highlight missing items in Orange on original sheet
+            ws.Range(ws.Cells(i, 5), ws.Cells(i, 7)).Interior.Color = RGB(255, 230, 153)
+            
+            ' Copy to missing sheet (Right Side)
+            missingSheet.Cells(missingRow2, 5).Value = ws.Cells(i, 5).Value
+            missingSheet.Cells(missingRow2, 6).Value = ws.Cells(i, 6).Value
+            missingSheet.Cells(missingRow2, 7).Value = ws.Cells(i, 7).Value
+            missingRow2 = missingRow2 + 1
+        Else
+            ' Clear color if it's no longer missing
+            ws.Range(ws.Cells(i, 5), ws.Cells(i, 7)).Interior.ColorIndex = xlNone
+        End If
+    Next i
+    
+    ' Make the columns look nice
+    missingSheet.Columns("A:G").AutoFit
+    
+    ' Return to original sheet and notify user
+    ws.Activate
+    MsgBox "Two-way comparison complete!" & vbCrLf & vbCrLf & _
+           "- Items in Set 1 missing from Set 2 are RED." & vbCrLf & _
+           "- Items in Set 2 missing from Set 1 are ORANGE." & vbCrLf & vbCrLf & _
+           "Check the 'Missing Data' sheet for a clean list.", vbInformation
+End Sub
