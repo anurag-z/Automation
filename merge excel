@@ -1,0 +1,33 @@
+import pandas as pd
+import glob
+
+# 1. Identify your files (e.g., File1.xlsx, File2.xlsx, File3.xlsx)
+# This looks for all files ending in .xlsx in your current folder
+all_files = glob.glob("*.xlsx")
+
+output_file = 'final_merged_master_data.csv'
+all_dfs = []
+
+for file in all_files:
+    print(f"Opening file: {file}")
+    excel_data = pd.ExcelFile(file)
+    
+    # Loop through every sheet in the current file
+    for sheet in excel_data.sheet_names:
+        print(f"--- Reading sheet: {sheet}")
+        df = pd.read_excel(file, sheet_name=sheet)
+        
+        # Clean headers (removes spaces and makes lowercase for perfect matching)
+        df.columns = [str(col).strip().lower() for col in df.columns]
+        
+        all_dfs.append(df)
+
+# 2. Combine all dataframes
+print("Combining all files into one master list...")
+master_df = pd.concat(all_dfs, ignore_index=True)
+
+# 3. Export to CSV (One header at the top, millions of rows below)
+print(f"Saving to {output_file}...")
+master_df.to_csv(output_file, index=False)
+
+print("Process Complete!")
