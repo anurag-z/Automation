@@ -1,0 +1,113 @@
+import pandas as pd
+
+# --- Configuration ---
+FILE_1_BASE = r"C:\Test\FieldAnalysis_Combined_1040_18_Feb.csv"
+FILE_2_NEW = r"C:\Test\FieldAnalysis_Combined_1040_test.csv"
+OUTPUT_FILE = r"C:\Test\Python_excel\difference_report_Full_Compare.xlsx"
+
+START_RECORD = 0
+END_RECORD = None 
+
+def run_comparison():
+    try:
+        print("Loading CSV data...")
+        # Read as object to prevent int conversion errors, then convert to string
+        df1 = pd.read_csv(FILE_1_BASE, dtype=object).fillna("").astype(str)
+        df2 = pd.read_csv(FILE_2_NEW, dtype=object).fillna("").astype(str)
+
+        # 1. Capture original row numbers
+        df1['original row_base'] = df1.index + 2
+        df2['original row_test'] = df2.index + 2
+
+        # 2. Apply Range Slice to Base file
+        total_base = len(df1)
+        actual_end = min(END_RECORD if END_RECORD is not None else total_base, total_base)
+        df1 = df1.iloc[START_RECORD:actual_end]
+
+        # 3. Define match columns
+        match_cols = ["Area", "Screen Name", "Screen Number", "Field Name", "Field Number", "Level", "Row", "Column"]
+        
+        # CLEANUP: Strip spaces
+        for col in match_cols:
+            if col in df1.columns: df1[col] = df1[col].str.strip()
+            if col in df2.columns: df2[col] = df2[col].str.strip()
+
+        print(f"Comparing {len(df1)} Base records against {len(df2)} Test records...")
+
+        # 4. Perform OUTER JOIN to find Deletions, Additions, and Matches
+        # indicator=True adds the '_merge' column which tells us where the row came from
+        merged = pd.merge(df1, df2, on=match_cols, how='outer', suffixes=('_base', ''), indicator=True)
+
+        # 5. Row processing logic
+        def process_row(row):
+            merge_result = row.get('_merge')
+
+            # Case: Exists in Base but NOT in Test (Deleted)
+            if merge_result == 'left_only':
+                return pd.Series(["DELETED ROW", ""])
+
+            # Case: Exists in Test but NOT in Base (New/Added)
+            if merge_result == 'right_only':
+                return pd.Series(["NEW ROW", ""])
+
+            # Case: Exists in Both (Check for modifications)
+            changes = []
+            for col in df2.columns:
+                # Skip tracking/metadata columns
+                if col in match_cols or col in ['original row_test', 'original row_base', '_merge']:
+                    continue
+                
+                base_val = str(row.get(f"{col}_base", "")).strip()
+                new_val = str(row.get(col, "")).strip()
+                
+                if base_val != new_val:
+                    changes.append(col)
+            
+            if changes:
+                return pd.Series(["MODIFIED", f"Changed: {', '.join(changes)}"])
+            
+            return pd.Series(["COMMON", ""])
+
+        print("Checking for differences...")
+        merged[['Comparison_Status', 'Change_Logs']] = merged.apply(process_row, axis=1)
+
+        # 6. Build Final DataFrame 
+        final_cols = ['original row_base', 'original row_test', 'Comparison_Status', 'Change_Logs'] + list(df2.columns)
+        final_cols = [col for col in final_cols if col in merged.columns]
+        final_cols = list(dict.fromkeys(final_cols)) 
+        
+        final_df = merged[final_cols].copy()
+
+        # 7. Highlighting logic
+        def highlight_cells(row):
+            styles = pd.Series([''] * len(row), index=row.index)
+            status = row.get('Comparison_Status', '')
+            logs = str(row.get('Change_Logs', ''))
+            
+            if status == 'DELETED ROW':
+                styles[:] = 'background-color: #E0E0E0' # Grey
+            elif status == 'NEW ROW':
+                styles[:] = 'background-color: #C6EFCE' # Light Green
+            elif status == 'MODIFIED':
+                styles['Comparison_Status'] = 'background-color: #FFFF99' # Yellow Status
+                if logs.startswith('Changed: '):
+                    changed_cols = logs.replace('Changed: ', '').split(', ')
+                    for col in changed_cols:
+                        if col in styles.index:
+                            styles[col] = 'background-color: #FF9999' # Light Red for specific cell
+            return styles
+
+        print("Applying visual highlights and saving...")
+        styled_df = final_df.style.apply(highlight_cells, axis=1)
+        styled_df.to_excel(OUTPUT_FILE, index=False, engine='openpyxl')
+        
+        print("\n--- FINAL TALLY SUMMARY ---")
+        print(final_df['Comparison_Status'].value_counts().to_string())
+        print("---------------------------")
+        print("Process Complete!")
+
+    except Exception as e:
+        print(f"X Error: {str(e)}")
+
+if __name__ == "__main__":
+    run_comparison()
