@@ -1,33 +1,40 @@
 import pandas as pd
 import glob
+import os
 
-# 1. Identify your files (e.g., File1.xlsx, File2.xlsx, File3.xlsx)
-# This looks for all files ending in .xlsx in your current folder
-all_files = glob.glob("*.xlsx")
+# 1. Get the current folder where the script is saved
+current_folder = os.getcwd()
+print(f"Looking for files in: {current_folder}")
 
-output_file = 'final_merged_master_data.csv'
-all_dfs = []
+# 2. Look for all types of Excel files (.xlsx, .xls, .xlsb)
+extension = "*.xlsx" 
+all_files = glob.glob(os.path.join(current_folder, extension))
 
-for file in all_files:
-    print(f"Opening file: {file}")
-    excel_data = pd.ExcelFile(file)
+if not all_files:
+    print("❌ ERROR: No Excel files found! Make sure your files end in .xlsx and are in the same folder as this script.")
+else:
+    print(f"✅ Found {len(all_files)} files: {all_files}")
     
-    # Loop through every sheet in the current file
-    for sheet in excel_data.sheet_names:
-        print(f"--- Reading sheet: {sheet}")
-        df = pd.read_excel(file, sheet_name=sheet)
+    output_file = 'final_merged_master_data.csv'
+    all_dfs = []
+
+    for file in all_files:
+        print(f"Processing: {os.path.basename(file)}")
+        excel_data = pd.ExcelFile(file)
         
-        # Clean headers (removes spaces and makes lowercase for perfect matching)
-        df.columns = [str(col).strip().lower() for col in df.columns]
-        
-        all_dfs.append(df)
+        for sheet in excel_data.sheet_names:
+            print(f"   - Reading sheet: {sheet}")
+            df = pd.read_excel(file, sheet_name=sheet)
+            
+            # Clean headers
+            df.columns = [str(col).strip().lower() for col in df.columns]
+            all_dfs.append(df)
 
-# 2. Combine all dataframes
-print("Combining all files into one master list...")
-master_df = pd.concat(all_dfs, ignore_index=True)
-
-# 3. Export to CSV (One header at the top, millions of rows below)
-print(f"Saving to {output_file}...")
-master_df.to_csv(output_file, index=False)
-
-print("Process Complete!")
+    # 3. Combine everything
+    if all_dfs:
+        print("Combining all data...")
+        master_df = pd.concat(all_dfs, ignore_index=True)
+        master_df.to_csv(output_file, index=False)
+        print(f"Done! Created: {output_file}")
+    else:
+        print("❌ No data was loaded from the sheets.")
