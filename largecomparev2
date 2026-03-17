@@ -2,13 +2,13 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# --- 1. CONFIGURATION ---
+# --- CONFIGURATION ---
 folder_path = r'C:\Users\C302461\OneDrive - Thomson Reuters Incorporated\Documents\IDesign\New folder\Excel\Data'
 file_a_path = os.path.join(folder_path, 'merged_master_data.csv')
 file_b_path = os.path.join(folder_path, 'merged_field_analysis.csv')
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-output_excel = os.path.join(folder_path, f'Action_Required_Comparison_{timestamp}.xlsx')
+output_excel = os.path.join(folder_path, f'Audit_With_ChangeLogs_{timestamp}.xlsx')
 
 def run_full_process():
     try:
@@ -16,89 +16,111 @@ def run_full_process():
         df_a = pd.read_csv(file_a_path, dtype=str).fillna("")
         df_b = pd.read_csv(file_b_path, dtype=str).fillna("")
 
-        # Normalize headers
         df_a.columns = [c.lower().strip() for c in df_a.columns]
         df_b.columns = [c.lower().strip() for c in df_b.columns]
 
-        # Define columns to keep
+        # Key columns for matching
         match_cols = ["area", "screen name", "screen number", "field name", "field number", "level", "row", "column"]
-        target_col = "action required" # The specific column you want to compare
+        
+        # Data columns to compare
+        compare_cols = [c for c in df_b.columns if c not in match_cols]
 
         print("Step 2: Merging data...")
-        # We only take the match columns and the target column from each file
-        df_a_sub = df_a[match_cols + [target_col]]
-        df_b_sub = df_b[match_cols + [target_col]]
-
-        # Merge - suffixes will create 'action required_base' and 'action required'
-        merged = pd.merge(df_a_sub, df_b_sub, on=match_cols, how='outer', suffixes='_base', indicator=True)
+        merged = pd.merge(
+            df_a[match_cols + compare_cols], 
+            df_b[match_cols + compare_cols], 
+            on=match_cols, 
+            how='outer', 
+            suffixes=('_base', ''), 
+            indicator=True
+        )
 
         merged['comparison_status'] = 'COMMON'
         merged.loc[merged['_merge'] == 'left_only', 'comparison_status'] = 'DELETED ROW'
         merged.loc[merged['_merge'] == 'right_only', 'comparison_status'] = 'NEW ROW'
         
-        # Identify modifications specifically in the "Action Required" column
-        print("Step 3: Comparing Action Required values...")
-        base_target = f"{target_col}_base"
-        new_target = target_col
-        
+        # New column to store the names of changed cells
+        merged['change_logs'] = ""
+
+        print("Step 3: Generating Change Logs and detecting modifications...")
         common_mask = (merged['_merge'] == 'both')
-        diff_mask = common_mask & (merged[base_target].str.strip() != merged[new_target].str.strip())
         
-        merged.loc[diff_mask, 'comparison_status'] = 'MODIFIED'
+        for col in compare_cols:
+            base_col = f"{col}_base"
+            if base_col in merged.columns:
+                # Find where the text is different
+                diff_mask = common_mask & (merged[base_col].str.strip() != merged[col].str.strip())
+                
+                # Update status to MODIFIED
+                merged.loc[diff_mask, 'comparison_status'] = 'MODIFIED'
+                
+                # Append the column name to the change_logs column for that row
+                merged.loc[diff_mask, 'change_logs'] += col + ", "
         
-        # Clean up technical merge column
+        # Clean up the trailing comma in the logs
+        merged['change_logs'] = merged['change_logs'].str.rstrip(', ')
+        
         merged = merged.drop(columns=['_merge'])
+        delta_df = merged[merged['comparison_status'] != 'COMMON'].copy()
 
         # --- 4. WRITE TO EXCEL ---
         print(f"Step 4: Writing {len(merged):,} rows to Excel...")
         rows_per_sheet = 1000000 
-        total_rows = len(merged)
-        
-        # Indices for highlighting
         status_idx = merged.columns.get_loc("comparison_status")
-        target_idx = merged.columns.get_loc(new_target)
+        log_idx = merged.columns.get_loc("change_logs")
 
         with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
             workbook = writer.book
-            
-            # Formatting
-            fmt_new = workbook.add_format({'bg_color': '#C6EFCE'}) # Green
-            fmt_del = workbook.add_format({'bg_color': '#E0E0E0'}) # Grey
-            fmt_mod = workbook.add_format({'bg_color': '#FFFF99'}) # Yellow
-            fmt_diff = workbook.add_format({'bg_color': '#FF9999', 'font_color': '#9C0006'}) # Red/Pink
+            fmt_new = workbook.add_format({'bg_color': '#C6EFCE'}) 
+            fmt_del = workbook.add_format({'bg_color': '#E0E0E0'}) 
+            fmt_mod_status = workbook.add_format({'bg_color': '#FFFF99'}) 
+            fmt_diff_cell = workbook.add_format({'bg_color': '#FF9999', 'font_color': '#9C0006'}) 
 
-            for i in range(0, total_rows, rows_per_sheet):
+            # A. WRITE 'CHANGES ONLY'
+            delta_df.to_excel(writer, sheet_name='Changes Only', index=False)
+            
+            # B. WRITE FULL DATA PARTS
+            for i in range(0, len(merged), rows_per_sheet):
                 chunk = merged.iloc[i : i + rows_per_sheet]
-                sheet_name = f"Action_Comparison_P{(i // rows_per_sheet) + 1}"
-                print(f"   -> Creating {sheet_name}...")
+                sheet_name = f"Full_Data_P{(i // rows_per_sheet) + 1}"
+                print(f"   -> Writing {sheet_name}...")
                 
                 chunk.to_excel(writer, sheet_name=sheet_name, index=False)
                 worksheet = writer.sheets[sheet_name]
                 worksheet.freeze_panes(1, 0)
 
-                # Determine column letters for logic
-                status_let = chr(65 + status_idx) if status_idx < 26 else "J"
+                status_let = chr(65 + status_idx)
                 
-                # 1. Row Level: NEW and DELETED
+                # 1. NEW/DELETED Row Highlighting
                 worksheet.conditional_format(1, 0, len(chunk), len(merged.columns)-1, {
                     'type': 'formula', 'criteria': f'=${status_let}2="NEW ROW"', 'format': fmt_new
                 })
                 worksheet.conditional_format(1, 0, len(chunk), len(merged.columns)-1, {
                     'type': 'formula', 'criteria': f'=${status_let}2="DELETED ROW"', 'format': fmt_del
                 })
-
-                # 2. Status Level: MODIFIED (Yellow)
+                
+                # 2. MODIFIED Status Cell Highlighting
                 worksheet.conditional_format(1, status_idx, len(chunk), status_idx, {
-                    'type': 'cell', 'criteria': 'equal to', 'value': '"MODIFIED"', 'format': fmt_mod
+                    'type': 'cell', 'criteria': 'equal to', 'value': '"MODIFIED"', 'format': fmt_mod_status
                 })
 
-                # 3. Cell Level: If MODIFIED, turn the NEW 'Action Required' cell Red
-                worksheet.conditional_format(1, target_idx, len(chunk), target_idx, {
-                    'type': 'formula', 'criteria': f'=${status_let}2="MODIFIED"', 'format': fmt_diff
-                })
+                # 3. Specific Cell Highlighting (Red)
+                for col_name in compare_cols:
+                    base_col_name = f"{col_name}_base"
+                    if base_col_name in merged.columns:
+                        curr_idx = merged.columns.get_loc(col_name)
+                        base_idx = merged.columns.get_loc(base_col_name)
+                        
+                        curr_let = chr(65 + curr_idx)
+                        base_let = chr(65 + base_idx)
+                        
+                        worksheet.conditional_format(1, curr_idx, len(chunk), curr_idx, {
+                            'type': 'formula', 
+                            'criteria': f'=AND(${status_let}2="MODIFIED", ${curr_let}2<>${base_let}2)', 
+                            'format': fmt_diff_cell
+                        })
 
-        print(f"\n✅ CLEAN REPORT READY: {output_excel}")
-        print("Included columns: Match Keys, Action Required (Base), Action Required (New), Status")
+        print(f"\n🚀 SUCCESS! Audit file with Change Logs: {output_excel}")
 
     except Exception as e:
         print(f"❌ Error: {e}")
