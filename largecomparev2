@@ -9,41 +9,44 @@ folder_path = r'C:\Users\C302461\OneDrive - Thomson Reuters Incorporated\Documen
 file_a_path = os.path.join(folder_path, 'merged_master_data.csv')
 file_b_path = os.path.join(folder_path, 'merged_field_analysis.csv')
 
-# 🔥 NEW: Set how many rows you want to test. 
-# Change this to None when you are ready to run the full 1.8 million!
-MAX_ROWS_TO_COMPARE = 1000 
+# Set to 1000 for a fast test. Set to None for the full 1.8M run.
+MAX_ROWS_FILE_A = 1000 
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-output_excel = os.path.join(folder_path, f'Audit_Report_Targeted_{timestamp}.xlsx')
+output_excel = os.path.join(folder_path, f'Audit_Report_{timestamp}.xlsx')
 
 def run_full_process():
     try:
-        if MAX_ROWS_TO_COMPARE:
-            print(f"Step 1: Loading ONLY the first {MAX_ROWS_TO_COMPARE:,} rows for testing...")
+        if MAX_ROWS_FILE_A:
+            print(f"Step 1: TEST MODE - Loading {MAX_ROWS_FILE_A:,} rows from File A, scanning all of File B...")
+            df_a = pd.read_csv(file_a_path, dtype=str, nrows=MAX_ROWS_FILE_A).fillna("")
+            merge_strategy = 'left' # <--- THE FIX: Ignores the extra 1.79M rows in File B
         else:
-            print("Step 1: Loading ALL rows...")
+            print("Step 1: FULL MODE - Loading ALL rows from both files...")
+            df_a = pd.read_csv(file_a_path, dtype=str).fillna("")
+            merge_strategy = 'outer' # <--- Grabs absolutely everything
 
-        # 'nrows' tells pandas to stop reading the file after X rows. Very fast!
-        df_a = pd.read_csv(file_a_path, dtype=str, nrows=MAX_ROWS_TO_COMPARE).fillna("")
-        df_b = pd.read_csv(file_b_path, dtype=str, nrows=MAX_ROWS_TO_COMPARE).fillna("")
+        df_b = pd.read_csv(file_b_path, dtype=str).fillna("")
 
-        # Normalize headers
+        # Normalize headers to lowercase
         df_a.columns = [c.lower().strip() for c in df_a.columns]
         df_b.columns = [c.lower().strip() for c in df_b.columns]
 
-        # --- YOUR SPECIFIC COLUMNS ---
+        # ==========================================
+        # --- 2. COLUMN DEFINITIONS ---
+        # ==========================================
         match_cols = ["area", "area number", "screen name", "screen number", "field name", "field number", "level", "row", "column"]
-        compare_cols = ["action required", "groupnumber"] 
+        compare_cols = ["action required", "reason", "groupnumber"] 
 
-        print("Step 2: Filtering and Merging data...")
-        df_a_sub = df_a[match_cols + compare_cols]
-        df_b_sub = df_b[match_cols + compare_cols]
+        print(f"Step 2: Merging data using a '{merge_strategy.upper()}' join...")
+        df_a_sub = df_a[match_cols + [c for c in compare_cols if c in df_a.columns]]
+        df_b_sub = df_b[match_cols + [c for c in compare_cols if c in df_b.columns]]
 
         merged = pd.merge(
             df_a_sub, 
             df_b_sub, 
             on=match_cols, 
-            how='outer', 
+            how=merge_strategy, # <--- Uses the dynamic strategy we set above
             suffixes=('_base', ''), 
             indicator=True
         )
@@ -51,21 +54,39 @@ def run_full_process():
         merged['comparison_status'] = 'COMMON'
         merged.loc[merged['_merge'] == 'left_only', 'comparison_status'] = 'DELETED ROW'
         merged.loc[merged['_merge'] == 'right_only', 'comparison_status'] = 'NEW ROW'
+        merged['change_logs'] = ""
 
-        print("Step 3: Finding specific cell mismatches...")
+        print("Step 3: Finding differences and generating Change Logs...")
         common_mask = (merged['_merge'] == 'both')
         
         for col in compare_cols:
             base_col = f"{col}_base"
-            if base_col in merged.columns:
+            if base_col in merged.columns and col in merged.columns:
                 diff_mask = common_mask & (merged[base_col].str.strip() != merged[col].str.strip())
                 merged.loc[diff_mask, 'comparison_status'] = 'MODIFIED'
+                merged.loc[diff_mask, 'change_logs'] += f"{col} changed, "
         
+        merged['change_logs'] = merged['change_logs'].str.rstrip(', ')
         merged = merged.drop(columns=['_merge'])
-        delta_df = merged[merged['comparison_status'] != 'COMMON'].copy()
 
-        # --- 4. EXCEL EXPORT & HIGHLIGHTING ---
-        print(f"Step 4: Writing Excel (Found {len(delta_df):,} changes out of {len(merged):,} processed rows)...")
+        # --- ORGANIZE FINAL COLUMNS ---
+        ordered_cols = ['change_logs', 'comparison_status'] + match_cols + \
+                       ['action required_base', 'action required', 
+                        'reason_base', 'reason', 
+                        'groupnumber_base', 'groupnumber']
+        
+        final_cols = [c for c in ordered_cols if c in merged.columns]
+        merged = merged[final_cols]
+
+        # --- GENERATE SUMMARY COUNTS ---
+        print("Step 4: Creating Summary Counts...")
+        summary_counts = merged['comparison_status'].value_counts().reset_index()
+        summary_counts.columns = ['Status', 'Total Count']
+
+        # ==========================================
+        # --- 5. EXCEL EXPORT & HIGHLIGHTING ---
+        # ==========================================
+        print(f"Step 5: Writing to Excel ({len(merged):,} total rows)...")
         rows_per_sheet = 1000000 
 
         with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
@@ -75,61 +96,65 @@ def run_full_process():
             fmt_del = workbook.add_format({'bg_color': '#E0E0E0'}) 
             fmt_mod_status = workbook.add_format({'bg_color': '#FFFF99'}) 
             fmt_diff_cell = workbook.add_format({'bg_color': '#FF9999', 'font_color': '#9C0006'}) 
+            fmt_hdr = workbook.add_format({'bold': True, 'bg_color': '#4472C4', 'font_color': 'white', 'border': 1})
 
-            def write_chunked_sheets(dataframe, prefix):
-                status_idx = dataframe.columns.get_loc("comparison_status")
+            # 1. WRITE SUMMARY SHEET
+            summary_counts.to_excel(writer, sheet_name='Summary Counts', index=False)
+            sum_ws = writer.sheets['Summary Counts']
+            sum_ws.set_column('A:A', 20)
+            sum_ws.set_column('B:B', 15)
+            for col_num, value in enumerate(summary_counts.columns.values):
+                sum_ws.write(0, col_num, value, fmt_hdr)
+
+            # 2. WRITE CHUNKED DATA SHEETS
+            status_idx = merged.columns.get_loc("comparison_status")
+            
+            def get_col_letter(idx):
+                if idx < 26: return chr(65 + idx)
+                else: return chr(64 + (idx // 26)) + chr(65 + (idx % 26))
+
+            status_let = get_col_letter(status_idx)
+
+            for i in range(0, len(merged), rows_per_sheet):
+                chunk = merged.iloc[i : i + rows_per_sheet]
+                sheet_name = f"Comparison_Data_P{(i // rows_per_sheet) + 1}"
+                print(f"   -> Writing {sheet_name}...")
                 
-                def get_col_letter(idx):
-                    if idx < 26: return chr(65 + idx)
-                    else: return chr(64 + (idx // 26)) + chr(65 + (idx % 26))
-
-                status_let = get_col_letter(status_idx)
-
-                for i in range(0, len(dataframe), rows_per_sheet):
-                    chunk = dataframe.iloc[i : i + rows_per_sheet]
-                    sheet_name = f"{prefix}_P{(i // rows_per_sheet) + 1}"
-                    print(f"   -> Writing {sheet_name}...")
-                    
-                    chunk.to_excel(writer, sheet_name=sheet_name, index=False)
-                    worksheet = writer.sheets[sheet_name]
-                    worksheet.freeze_panes(1, 0)
-                    
-                    worksheet.conditional_format(1, 0, len(chunk), len(dataframe.columns)-1, {
-                        'type': 'formula', 'criteria': f'=${status_let}2="NEW ROW"', 'format': fmt_new
-                    })
-                    worksheet.conditional_format(1, 0, len(chunk), len(dataframe.columns)-1, {
-                        'type': 'formula', 'criteria': f'=${status_let}2="DELETED ROW"', 'format': fmt_del
-                    })
-                    worksheet.conditional_format(1, status_idx, len(chunk), status_idx, {
-                        'type': 'cell', 'criteria': 'equal to', 'value': '"MODIFIED"', 'format': fmt_mod_status
-                    })
-
-                    for col_name in compare_cols:
-                        base_col_name = f"{col_name}_base"
-                        if base_col_name in dataframe.columns:
-                            curr_idx = dataframe.columns.get_loc(col_name)
-                            base_idx = dataframe.columns.get_loc(base_col_name)
-                            
-                            curr_let = get_col_letter(curr_idx)
-                            base_let = get_col_letter(base_idx)
-                            
-                            worksheet.conditional_format(1, curr_idx, len(chunk), curr_idx, {
-                                'type': 'formula', 
-                                'criteria': f'=AND(${status_let}2="MODIFIED", ${curr_let}2<>${base_let}2)', 
-                                'format': fmt_diff_cell
-                            })
-
-            if len(delta_df) > 0:
-                write_chunked_sheets(delta_df, "Changes")
-            else:
-                print("   -> No changes found in this sample size!")
+                chunk.to_excel(writer, sheet_name=sheet_name, index=False)
+                worksheet = writer.sheets[sheet_name]
                 
-            write_chunked_sheets(merged, "Full_Data")
+                worksheet.freeze_panes(1, 0)
+                worksheet.set_column('A:A', 30) 
+                worksheet.set_column('B:B', 15) 
+                worksheet.set_column('L:Q', 20) 
+                
+                worksheet.conditional_format(1, 0, len(chunk), len(merged.columns)-1, {
+                    'type': 'formula', 'criteria': f'=${status_let}2="NEW ROW"', 'format': fmt_new
+                })
+                worksheet.conditional_format(1, 0, len(chunk), len(merged.columns)-1, {
+                    'type': 'formula', 'criteria': f'=${status_let}2="DELETED ROW"', 'format': fmt_del
+                })
+                worksheet.conditional_format(1, status_idx, len(chunk), status_idx, {
+                    'type': 'cell', 'criteria': 'equal to', 'value': '"MODIFIED"', 'format': fmt_mod_status
+                })
 
-        print(f"\n✅ REPORT READY: {output_excel}")
+                for col_name in compare_cols:
+                    base_col_name = f"{col_name}_base"
+                    if base_col_name in merged.columns and col_name in merged.columns:
+                        curr_idx = merged.columns.get_loc(col_name)
+                        base_idx = merged.columns.get_loc(base_col_name)
+                        
+                        curr_let = get_col_letter(curr_idx)
+                        base_let = get_col_letter(base_idx)
+                        
+                        worksheet.conditional_format(1, curr_idx, len(chunk), curr_idx, {
+                            'type': 'formula', 
+                            'criteria': f'=AND(${status_let}2="MODIFIED", ${curr_let}2<>${base_let}2)', 
+                            'format': fmt_diff_cell
+                        })
 
-    except KeyError as e:
-        print(f"❌ Column Missing Error: Python couldn't find {e} in one of your files.")
+        print(f"\n✅ FAST TEST READY: {output_excel}")
+
     except Exception as e:
         print(f"❌ Error: {e}")
 
