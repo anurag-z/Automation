@@ -9,7 +9,7 @@ folder_path = r'C:\Users\C302461\OneDrive - Thomson Reuters Incorporated\Documen
 file_a_path = os.path.join(folder_path, 'merged_master_data.csv')
 file_b_path = os.path.join(folder_path, 'merged_field_analysis.csv')
 
-# Set to 1000 for a fast test. Set to None for the full 1.8M run.
+# TEST LIMIT: Set to 1000 for a fast test. Set to None to run the full 1.8 Million!
 MAX_ROWS_FILE_A = 1000 
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -20,15 +20,14 @@ def run_full_process():
         if MAX_ROWS_FILE_A:
             print(f"Step 1: TEST MODE - Loading {MAX_ROWS_FILE_A:,} rows from File A, scanning all of File B...")
             df_a = pd.read_csv(file_a_path, dtype=str, nrows=MAX_ROWS_FILE_A).fillna("")
-            merge_strategy = 'left' # <--- THE FIX: Ignores the extra 1.79M rows in File B
+            merge_strategy = 'left' 
         else:
             print("Step 1: FULL MODE - Loading ALL rows from both files...")
             df_a = pd.read_csv(file_a_path, dtype=str).fillna("")
-            merge_strategy = 'outer' # <--- Grabs absolutely everything
+            merge_strategy = 'outer' 
 
         df_b = pd.read_csv(file_b_path, dtype=str).fillna("")
 
-        # Normalize headers to lowercase
         df_a.columns = [c.lower().strip() for c in df_a.columns]
         df_b.columns = [c.lower().strip() for c in df_b.columns]
 
@@ -46,7 +45,7 @@ def run_full_process():
             df_a_sub, 
             df_b_sub, 
             on=match_cols, 
-            how=merge_strategy, # <--- Uses the dynamic strategy we set above
+            how=merge_strategy, 
             suffixes=('_base', ''), 
             indicator=True
         )
@@ -78,15 +77,17 @@ def run_full_process():
         final_cols = [c for c in ordered_cols if c in merged.columns]
         merged = merged[final_cols]
 
-        # --- GENERATE SUMMARY COUNTS ---
         print("Step 4: Creating Summary Counts...")
         summary_counts = merged['comparison_status'].value_counts().reset_index()
         summary_counts.columns = ['Status', 'Total Count']
 
         # ==========================================
-        # --- 5. EXCEL EXPORT & HIGHLIGHTING ---
+        # --- 5. EXCEL EXPORT & 10-LAKH SPLIT ---
         # ==========================================
-        print(f"Step 5: Writing to Excel ({len(merged):,} total rows)...")
+        total_records = len(merged)
+        print(f"Step 5: Writing to Excel ({total_records:,} total rows)...")
+        
+        # 🔥 The strict 10 Lakh row limit per sheet
         rows_per_sheet = 1000000 
 
         with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
@@ -99,14 +100,14 @@ def run_full_process():
             fmt_hdr = workbook.add_format({'bold': True, 'bg_color': '#4472C4', 'font_color': 'white', 'border': 1})
 
             # 1. WRITE SUMMARY SHEET
-            summary_counts.to_excel(writer, sheet_name='Summary Counts', index=False)
-            sum_ws = writer.sheets['Summary Counts']
+            summary_counts.to_excel(writer, sheet_name='Summary', index=False)
+            sum_ws = writer.sheets['Summary']
             sum_ws.set_column('A:A', 20)
             sum_ws.set_column('B:B', 15)
             for col_num, value in enumerate(summary_counts.columns.values):
                 sum_ws.write(0, col_num, value, fmt_hdr)
 
-            # 2. WRITE CHUNKED DATA SHEETS
+            # 2. AUTO-SPLIT LOGIC FOR SHEETS
             status_idx = merged.columns.get_loc("comparison_status")
             
             def get_col_letter(idx):
@@ -115,10 +116,17 @@ def run_full_process():
 
             status_let = get_col_letter(status_idx)
 
-            for i in range(0, len(merged), rows_per_sheet):
-                chunk = merged.iloc[i : i + rows_per_sheet]
-                sheet_name = f"Comparison_Data_P{(i // rows_per_sheet) + 1}"
-                print(f"   -> Writing {sheet_name}...")
+            # Calculate how many sheets are needed
+            num_sheets = (total_records // rows_per_sheet) + (1 if total_records % rows_per_sheet != 0 else 0)
+
+            for i in range(num_sheets):
+                start_row = i * rows_per_sheet
+                end_row = min((i + 1) * rows_per_sheet, total_records)
+                
+                chunk = merged.iloc[start_row : end_row]
+                sheet_name = f"Data_Part_{i + 1}"
+                
+                print(f"   -> Creating '{sheet_name}' (Rows {start_row + 1:,} to {end_row:,})...")
                 
                 chunk.to_excel(writer, sheet_name=sheet_name, index=False)
                 worksheet = writer.sheets[sheet_name]
@@ -153,7 +161,7 @@ def run_full_process():
                             'format': fmt_diff_cell
                         })
 
-        print(f"\n✅ FAST TEST READY: {output_excel}")
+        print(f"\n✅ PROCESS COMPLETE! Report saved at: {output_excel}")
 
     except Exception as e:
         print(f"❌ Error: {e}")
