@@ -1,580 +1,678 @@
 <!DOCTYPE html>
 <html lang="en-US">
- 
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Anurag Bansod Portfolio</title>
-    <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet">
-    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
-    <link href="css/aos.css?ver=1.1.0" rel="stylesheet">
-    <link href="css/bootstrap.min.css?ver=1.1.0" rel="stylesheet">
-    <link href="css/main.css?ver=1.1.0" rel="stylesheet">
-    <noscript>
-      <style type="text/css">
-        [data-aos] {
-            opacity: 1 !important;
-            transform: translate(0) scale(1) !important;
-        }
-      </style>
-    </noscript>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anurag Bansod — QA Automation Engineer</title>
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+  <link href="css/aos.css?ver=1.1.0" rel="stylesheet">
+  <link href="css/bootstrap.min.css?ver=1.1.0" rel="stylesheet">
+  <link href="css/main.css?ver=1.1.0" rel="stylesheet">
   <meta property="og:image" content="https://anurag-z.github.io/images/Anurag.jpeg" />
-<meta property="og:url"content="https://anurag-z.github.io/" />
+  <meta property="og:url" content="https://anurag-z.github.io/" />
+  <meta property="og:title" content="Anurag Bansod Portfolio" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
 
-<meta property="og:title" content="Anurag Bansod Portfolio" />
-  </head>
-  <body id="top">
-    <header>
-      <div class="profile-page sidebar-collapse">
-        <nav class="navbar navbar-expand-lg fixed-top navbar-transparent bg-primary" color-on-scroll="400">
-          <div class="container">
-            <div class="navbar-translate"><a class="navbar-brand" href="#" rel="tooltip">Anurag Bansod</a>
-              <button class="navbar-toggler navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation" aria-controls="navigation" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-bar bar1"></span><span class="navbar-toggler-bar bar2"></span><span class="navbar-toggler-bar bar3"></span></button>
-            </div>
-            <div class="collapse navbar-collapse justify-content-end" id="navigation">
-              <ul class="navbar-nav">
-                <li class="nav-item"><a class="nav-link smooth-scroll" href="#about">About</a></li>
-                <li class="nav-item"><a class="nav-link smooth-scroll" href="#skill">Skills</a></li>
-              
-                <li class="nav-item"><a class="nav-link smooth-scroll" href="#experience">Experience</a></li>
- <li class="nav-item"><a class="nav-link smooth-scroll" href="#projects">Projects</a></li>
-               
-              </ul>
-            </div>
-          </div>
-        </nav>
-      </div>
-    </header>
-    <div class="page-content">
+    body {
+      background: #0a0e1a !important;
+      color: #c9d1e0 !important;
+      font-family: 'Montserrat', sans-serif !important;
+      padding-top: 60px;
+    }
+
+    /* Neutralise main.css inherited styles */
+    .page-content, .profile-page, .wrapper, .section { background: transparent !important; }
+    .page-header { display: none !important; }
+    .card { background: transparent !important; border: none !important; box-shadow: none !important; }
+    .progress-container, .progress { display: none !important; }
+    h4.title, h5 { color: inherit !important; }
+
+    /* ── NAV ── */
+    .pf-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      background: rgba(10,14,26,0.96);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid #1a2235;
+      height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2.5rem;
+    }
+    .pf-brand {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; font-weight: 600; color: #e8edf5;
+      text-decoration: none; letter-spacing: 1px;
+    }
+    .pf-brand span { color: #5ba3fa; }
+    .pf-nav-links { display: flex; gap: 2rem; list-style: none; }
+    .pf-nav-links a {
+      color: #677387; font-size: 11px; text-decoration: none;
+      text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+      transition: color 0.2s;
+    }
+    .pf-nav-links a:hover { color: #5ba3fa; }
+
+    /* ── HERO ── */
+    .pf-hero {
+      min-height: calc(100vh - 60px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 60px 2.5rem;
+      background: #0a0e1a;
+      position: relative; overflow: hidden;
+    }
+    .pf-hero::after {
+      content: '';
+      position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 20% 60%, rgba(91,163,250,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 75% 20%, rgba(139,92,246,0.05) 0%, transparent 50%);
+    }
+    .pf-hero-inner {
+      max-width: 860px; width: 100%;
+      display: flex; align-items: center; gap: 3.5rem;
+      position: relative; z-index: 1;
+    }
+    .pf-hero-photo {
+      width: 150px; height: 150px; border-radius: 50%;
+      border: 2px solid #5ba3fa;
+      object-fit: cover; flex-shrink: 0;
+      box-shadow: 0 0 40px rgba(91,163,250,0.18);
+    }
+    .pf-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: #5ba3fa;
+      letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 10px;
+    }
+    .pf-hero-name {
+      font-size: clamp(2rem, 4.5vw, 3rem);
+      font-weight: 700; color: #e8edf5; line-height: 1.1; margin-bottom: 10px;
+    }
+    .pf-hero-role {
+      font-size: 15px; color: #677387; margin-bottom: 28px; font-weight: 400;
+    }
+    .pf-hero-role strong { color: #a0aec0; }
+    .pf-stats {
+      display: flex; gap: 2.5rem; margin-bottom: 32px;
+      border-left: 2px solid #1a2235; padding-left: 20px;
+    }
+    .pf-stat-num {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 20px; font-weight: 600; color: #5ba3fa;
+    }
+    .pf-stat-lbl { font-size: 10px; color: #677387; text-transform: uppercase; letter-spacing: 0.5px; }
+    .pf-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .pf-btn {
+      padding: 9px 20px; border-radius: 4px; font-size: 11px;
+      font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+      text-decoration: none; transition: all 0.18s; cursor: pointer; border: 1px solid;
+    }
+    .pf-btn-fill { background: #5ba3fa; color: #fff; border-color: #5ba3fa; }
+    .pf-btn-fill:hover { background: #3b7de8; border-color: #3b7de8; color: #fff; text-decoration: none; }
+    .pf-btn-ghost { background: transparent; color: #a0aec0; border-color: #1a2235; }
+    .pf-btn-ghost:hover { border-color: #5ba3fa; color: #5ba3fa; text-decoration: none; }
+    .pf-icon-btn {
+      width: 36px; height: 36px; border-radius: 4px; border: 1px solid #1a2235;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #677387; text-decoration: none; transition: all 0.18s;
+    }
+    .pf-icon-btn:hover { border-color: #5ba3fa; color: #5ba3fa; text-decoration: none; }
+
+    /* ── SECTION WRAPPER ── */
+    .pf-wrap { padding: 80px 2.5rem; }
+    .pf-wrap-alt { background: #0c1020; }
+    .pf-inner { max-width: 960px; margin: 0 auto; }
+    .pf-sec-eye {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: #5ba3fa;
+      letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .pf-sec-title {
+      font-size: 24px; font-weight: 700; color: #e8edf5; margin-bottom: 36px;
+    }
+    .pf-rule { display: none; }
+
+    /* ── SKILLS ── */
+    .pf-skill-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 16px; margin-bottom: 32px;
+    }
+    .pf-skill-card {
+      background: #111827; border: 1px solid #1a2235;
+      border-radius: 8px; padding: 20px;
+    }
+    .pf-skill-card-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: #5ba3fa;
+      letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 16px;
+    }
+    .pf-sk-list { list-style: none; padding: 0; margin: 0; }
+    .pf-sk-list li {
+      font-size: 12px; color: #a0aec0; padding: 8px 0;
+      border-bottom: 1px solid #1a2235; line-height: 1.4;
+    }
+    .pf-sk-list li:last-child { border-bottom: none; padding-bottom: 0; }
+    .pf-sk-list.sk-green li { color: #a0aec0; }
+    .pf-sk-list.sk-purple li { color: #a0aec0; }
+
+    /* Tags */
+    .pf-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+    .pf-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; padding: 4px 10px; border-radius: 4px;
+      border: 1px solid #1a2235; color: #677387; background: #0a0e1a;
+    }
+    .pf-tag.t-blue { color: #5ba3fa; border-color: rgba(91,163,250,0.25); background: rgba(91,163,250,0.06); }
+    .pf-tag.t-purple { color: #8b5cf6; border-color: rgba(139,92,246,0.25); background: rgba(139,92,246,0.06); }
+    .pf-tag.t-green { color: #10b981; border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.06); }
+
+    /* ── AI PIPELINE (FEATURED) ── */
+    .pf-pipeline-wrap {
+      background: #0c1020;
+      border-top: 1px solid #1a2235;
+      border-bottom: 1px solid #1a2235;
+      padding: 80px 2.5rem;
+    }
+    .pf-pipeline-card {
+      max-width: 960px; margin: 0 auto;
+      background: #111827;
+      border: 1px solid rgba(139,92,246,0.25);
+      border-radius: 12px; padding: 36px;
+      position: relative; overflow: hidden;
+      box-shadow: 0 0 80px rgba(139,92,246,0.07), 0 0 30px rgba(91,163,250,0.04);
+    }
+    .pf-pipeline-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, #5ba3fa 0%, #8b5cf6 50%, #10b981 100%);
+    }
+    .pf-pipe-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.3);
+      color: #8b5cf6; border-radius: 20px;
+      padding: 4px 14px; font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 14px;
+    }
+    .pf-pipe-title { font-size: 20px; font-weight: 700; color: #e8edf5; margin-bottom: 6px; }
+    .pf-pipe-sub { font-size: 13px; color: #677387; margin-bottom: 24px; }
+    .pf-pipe-tech { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 26px; }
+    .pf-flow {
+      background: #0a0e1a; border-radius: 8px;
+      padding: 20px 16px; display: flex; align-items: center;
+      overflow-x: auto; gap: 0; margin-bottom: 24px;
+    }
+    .pf-step { flex: 1; min-width: 88px; text-align: center; position: relative; padding: 0 4px; }
+    .pf-step + .pf-step::before {
+      content: '›';
+      position: absolute; left: -5px; top: 50%; transform: translateY(-65%);
+      color: #1a2235; font-size: 24px; line-height: 1;
+    }
+    .pf-step-dot {
+      width: 42px; height: 42px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; font-weight: 700; color: #e8edf5;
+    }
+    .d1 { background: rgba(91,163,250,0.12); border: 1px solid rgba(91,163,250,0.35); }
+    .d2 { background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.35); }
+    .d3 { background: rgba(253,126,20,0.12); border: 1px solid rgba(253,126,20,0.35); }
+    .d4 { background: rgba(32,201,151,0.12); border: 1px solid rgba(32,201,151,0.35); }
+    .d5 { background: rgba(232,62,140,0.12); border: 1px solid rgba(232,62,140,0.35); }
+    .d6 { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); }
+    .pf-step-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 600; color: #e8edf5;
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;
+    }
+    .pf-step-sub { font-size: 9px; color: #677387; }
+    .pf-pipe-foot { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .pf-pipe-note { font-size: 12px; color: #677387; }
+
+    /* ── TIMELINE ── */
+    .pf-timeline { padding-left: 24px; position: relative; }
+    .pf-timeline::before {
+      content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
+      width: 1px; background: #1a2235;
+    }
+    .pf-tl-item { position: relative; margin-bottom: 40px; }
+    .pf-tl-item::before {
+      content: ''; position: absolute; left: -28px; top: 5px;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #5ba3fa; border: 2px solid #0a0e1a;
+      box-shadow: 0 0 0 3px rgba(91,163,250,0.15);
+    }
+    .pf-tl-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      flex-wrap: wrap; gap: 6px; margin-bottom: 3px;
+    }
+    .pf-tl-company { font-size: 15px; font-weight: 700; color: #e8edf5; }
+    .pf-tl-period {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: #5ba3fa;
+      background: rgba(91,163,250,0.08); border: 1px solid rgba(91,163,250,0.2);
+      padding: 2px 8px; border-radius: 4px;
+    }
+    .pf-tl-role { font-size: 12px; color: #677387; margin-bottom: 6px; }
+    .pf-tl-project { font-size: 13px; color: #a0aec0; font-weight: 600; margin-bottom: 10px; }
+    .pf-tl-list { padding-left: 14px; }
+    .pf-tl-list li { font-size: 13px; color: #677387; line-height: 1.75; margin-bottom: 3px; }
+    .pf-tl-list li strong { color: #a0aec0; }
+    .pf-ai-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25);
+      color: #8b5cf6; border-radius: 4px; padding: 1px 7px;
+      font-size: 10px; font-family: 'JetBrains Mono', monospace;
+      margin-left: 6px; vertical-align: middle;
+    }
+
+    /* ── PROJECT GRID ── */
+    .pf-proj-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .pf-proj-card {
+      background: #111827; border: 1px solid #1a2235; border-radius: 8px;
+      padding: 20px; text-decoration: none; display: block;
+      transition: border-color 0.18s, transform 0.15s;
+    }
+    .pf-proj-card:hover { border-color: #5ba3fa; transform: translateY(-2px); text-decoration: none; }
+    .pf-proj-name { font-size: 13px; font-weight: 700; color: #e8edf5; margin-bottom: 7px; }
+    .pf-proj-desc { font-size: 12px; color: #677387; line-height: 1.6; margin-bottom: 12px; }
+    .pf-proj-link { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5ba3fa; }
+
+    /* ── EDUCATION ── */
+    .pf-edu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .pf-edu-card {
+      background: #111827; border: 1px solid #1a2235; border-radius: 8px; padding: 20px;
+    }
+    .pf-edu-year {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: #5ba3fa; margin-bottom: 6px;
+    }
+    .pf-edu-deg { font-size: 14px; font-weight: 700; color: #e8edf5; margin-bottom: 4px; }
+    .pf-edu-org { font-size: 12px; color: #677387; }
+
+    /* ── ABOUT ── */
+    .pf-about-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 48px; align-items: start; }
+    .pf-about-text { font-size: 13px; color: #677387; line-height: 1.85; }
+    .pf-about-text p { margin-bottom: 14px; }
+    .pf-info-row { display: flex; gap: 10px; margin-bottom: 12px; font-size: 13px; align-items: baseline; }
+    .pf-info-key {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: #5ba3fa; min-width: 72px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .pf-info-val { color: #a0aec0; }
+    .pf-info-val a { color: #5ba3fa; text-decoration: none; }
+    .pf-info-val a:hover { text-decoration: underline; }
+
+    /* ── FOOTER ── */
+    .pf-footer {
+      background: #0c1020; border-top: 1px solid #1a2235;
+      padding: 36px 2.5rem; text-align: center;
+    }
+    .pf-footer-icons { display: flex; gap: 12px; justify-content: center; margin-bottom: 16px; }
+    .pf-footer-copy { font-size: 12px; color: #3d4a5c; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 700px) {
+      .pf-hero-inner { flex-direction: column; text-align: center; gap: 1.5rem; }
+      .pf-stats { justify-content: center; padding-left: 0; border-left: none; border-top: 1px solid #1a2235; padding-top: 16px; }
+      .pf-actions { justify-content: center; }
+      .pf-nav-links { display: none; }
+      .pf-about-grid { grid-template-columns: 1fr; }
+      .pf-edu-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body id="top">
+
+  <!-- NAV -->
+  <nav class="pf-nav">
+    <a href="#top" class="pf-brand">anurag<span>.</span>bansod</a>
+    <ul class="pf-nav-links">
+      <li><a href="#skill">Skills</a></li>
+      <li><a href="#pipeline">AI Pipeline</a></li>
+      <li><a href="#experience">Experience</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="#about">About</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="pf-hero">
+    <div class="pf-hero-inner">
+      <img src="images/Anurag.jpeg" alt="Anurag Bansod" class="pf-hero-photo">
       <div>
-<div class="profile-page">
-  <div class="wrapper">
-    <div class="page-header page-header-small" filter-color="green">
-      <div class="page-header-image" data-parallax="true" style="background-image: url('images/code_bg.jpg')"></div>
-      <div class="container">
-        <div class="content-center">
-          <div class="cc-profile-image"><a href="#"><img src="images/Anurag.jpeg" alt="Image"/></a></div>
-          <div class="h2 title">Anurag Bansod</div>
-          <p class="category text-white">Automation Engineer,SDET</p><a class="btn btn-primary smooth-scroll mr-2" href="#about" data-aos="zoom-in" data-aos-anchor="data-aos-anchor">Hire Me</a><a class="btn btn-primary" href="resume/Anurag_Automaiton_AZ.pdf" data-aos="zoom-in" data-aos-anchor="data-aos-anchor">Download CV</a>
-          <!--<p class="category text-white">Automation Engineer,SDET</p><a class="btn btn-primary smooth-scroll mr-2" href="#contact" data-aos="zoom-in" data-aos-anchor="data-aos-anchor">Hire Me</a><a class="btn btn-primary" href="resume/Anurag_Automaiton_AZ.pdf" data-aos="zoom-in" data-aos-anchor="data-aos-anchor">Download CV</a> -->
+        <div class="pf-eyebrow">Automation Engineer · SDET</div>
+        <h1 class="pf-hero-name">Anurag Bansod</h1>
+        <p class="pf-hero-role"><strong>Automation Engineer</strong> &nbsp;·&nbsp; Playwright · C# · AI Pipelines</p>
+        <p style="font-size:13px;color:#8b5cf6;margin-bottom:24px;line-height:1.6;border-left:2px solid rgba(139,92,246,0.4);padding-left:12px;">Built an AI pipeline that takes an Azure DevOps story to a reviewed PR — no human steps.</p>
+        <div class="pf-stats">
+          <div>
+            <span class="pf-stat-num">6+</span>
+            <span class="pf-stat-lbl">Years</span>
+          </div>
+          <div>
+            <span class="pf-stat-num">4</span>
+            <span class="pf-stat-lbl">Companies</span>
+          </div>
+          <div>
+            <span class="pf-stat-num">10+</span>
+            <span class="pf-stat-lbl">Frameworks</span>
+          </div>
+        </div>
+        <div class="pf-actions">
+          <a href="#about" class="pf-btn pf-btn-fill">Get in Touch</a>
+          <a href="resume/Anurag_Automaiton_AZ.pdf" class="pf-btn pf-btn-ghost">Download CV</a>
+          <a href="https://www.linkedin.com/in/anurag-bansod-100Z/" target="_blank" class="pf-icon-btn"><i class="fa fa-linkedin"></i></a>
+          <a href="https://github.com/anurag-z?tab=repositories" target="_blank" class="pf-icon-btn"><i class="fa fa-github"></i></a>
         </div>
       </div>
-      <div class="section">
-        <div class="container">
-          <div class="button-container">
-            <a class="btn btn-default btn-round btn-lg btn-icon" href="https://www.linkedin.com/in/anurag-bansod-100Z/" rel="tooltip" title="Follow me on Linkedin" target="_blank"><i class="fa fa-linkedin"></i></a>
-            <a class="btn btn-default btn-round btn-lg btn-icon" href="https://github.com/anurag-z?tab=repositories" rel="tooltip" title="Check My Github Repos" target="_blank"><i class="fa fa-github"></i></a>
-           
-            <!-- <a class="btn btn-default btn-round btn-lg btn-icon" href="https://stackoverflow.com/users/5372079/abhishek-dhoundiyal" rel="tooltip" title="Follow me on Stackoverflow" target="_blank"><i class="fa fa-stack-overflow"></i></a> -->
+    </div>
+  </section>
 
+  <!-- AI PIPELINE — FEATURED -->
+  <div class="pf-pipeline-wrap" id="pipeline">
+    <div class="pf-pipeline-card" data-aos="fade-up">
+      <div class="pf-pipe-badge">Featured Project · 2025</div>
+      <div class="pf-pipe-title">AI-Assisted Test Automation Pipeline</div>
+      <div class="pf-pipe-sub">Azure DevOps story → AI test generation → StyleCop build → automated execution → AI review → PR — story to PR in one command.</div>
+      <div class="pf-pipe-tech">
+        <span class="pf-tag t-purple">Playwright C#</span>
+        <span class="pf-tag t-purple">GitHub Copilot</span>
+        <span class="pf-tag t-purple">Claude Code</span>
+        <span class="pf-tag t-purple">MCP Protocol</span>
+        <span class="pf-tag t-blue">Azure DevOps MCP</span>
+        <span class="pf-tag t-blue">GitHub MCP</span>
+        <span class="pf-tag">StyleCop</span>
+        <span class="pf-tag">CLAUDE.md</span>
+        <span class="pf-tag">.NET 8 / NUnit 3</span>
+      </div>
+      <div class="pf-flow">
+        <div class="pf-step">
+          <div class="pf-step-dot d1">01</div>
+          <div class="pf-step-lbl">Story</div>
+          <div class="pf-step-sub">Azure DevOps</div>
+        </div>
+        <div class="pf-step">
+          <div class="pf-step-dot d2">02</div>
+          <div class="pf-step-lbl">AI Tests</div>
+          <div class="pf-step-sub">Copilot / Claude</div>
+        </div>
+        <div class="pf-step">
+          <div class="pf-step-dot d3">03</div>
+          <div class="pf-step-lbl">Build</div>
+          <div class="pf-step-sub">StyleCop</div>
+        </div>
+        <div class="pf-step">
+          <div class="pf-step-dot d4">04</div>
+          <div class="pf-step-lbl">Execute</div>
+          <div class="pf-step-sub">dotnet test</div>
+        </div>
+        <div class="pf-step">
+          <div class="pf-step-dot d5">05</div>
+          <div class="pf-step-lbl">AI Review</div>
+          <div class="pf-step-sub">Code review</div>
+        </div>
+        <div class="pf-step">
+          <div class="pf-step-dot d6">06</div>
+          <div class="pf-step-lbl">Raise PR</div>
+          <div class="pf-step-sub">GitHub MCP</div>
+        </div>
+      </div>
+      <div class="pf-pipe-foot">
+        <a href="https://github.com/anurag-z/Automation" target="_blank" class="pf-btn pf-btn-ghost" style="font-size:10px">View Repository →</a>
+        <span class="pf-pipe-note">Custom instruction files · CLAUDE.md conventions · MCP server orchestration</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SKILLS -->
+  <div class="pf-wrap pf-wrap-alt" id="skill">
+    <div class="pf-inner">
+      <div class="pf-sec-eye">Proficiency</div>
+      <h2 class="pf-sec-title">Professional Skills</h2>
+      <div class="pf-rule"></div>
+
+      <div class="pf-skill-grid">
+        <div class="pf-skill-card" data-aos="fade-up">
+          <div class="pf-skill-card-title">UI &amp; Test Automation</div>
+          <ul class="pf-sk-list">
+            <li>Selenium WebDriver</li>
+            <li>Playwright (C#)</li>
+            <li>SpecFlow / BDD</li>
+            <li>API Automation — RestSharp, Rest-Assured</li>
+            <li>Data-Driven &amp; Parallel Execution</li>
+          </ul>
+        </div>
+        <div class="pf-skill-card" data-aos="fade-up" data-aos-delay="80">
+          <div class="pf-skill-card-title">Languages &amp; Frameworks</div>
+          <ul class="pf-sk-list sk-green">
+            <li>C# · Java</li>
+            <li>TestNG / NUnit 3</li>
+            <li>Azure DevOps Pipelines</li>
+            <li>GitHub Actions CI/CD</li>
+            <li>Docker</li>
+          </ul>
+        </div>
+        <div class="pf-skill-card" data-aos="fade-up" data-aos-delay="160">
+          <div class="pf-skill-card-title">AI &amp; Tooling</div>
+          <ul class="pf-sk-list sk-purple">
+            <li>GitHub Copilot + Claude Code</li>
+            <li>MCP Protocol</li>
+            <li>AI-Assisted Test Pipelines</li>
+            <li>StyleCop / EditorConfig</li>
+            <li>CLAUDE.md conventions</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pf-sec-eye" style="margin-bottom:12px">Technical Stack</div>
+      <div class="pf-tags">
+        <span class="pf-tag t-blue">Playwright C#</span>
+        <span class="pf-tag t-blue">Selenium</span>
+        <span class="pf-tag t-blue">RestSharp</span>
+        <span class="pf-tag t-blue">Rest-Assured</span>
+        <span class="pf-tag t-blue">NUnit · TestNG · SpecFlow</span>
+        <span class="pf-tag">C# · Java · SQL</span>
+        <span class="pf-tag">Azure DevOps</span>
+        <span class="pf-tag">GitHub Actions</span>
+        <span class="pf-tag">Docker</span>
+        <span class="pf-tag">Git · TFS</span>
+        <span class="pf-tag">JIRA · Postman</span>
+        <span class="pf-tag">Allure · Extent Reports</span>
+        <span class="pf-tag">Visual Studio · VS Code</span>
+        <span class="pf-tag t-purple">GitHub Copilot</span>
+        <span class="pf-tag t-purple">Claude Code</span>
+        <span class="pf-tag t-purple">MCP Protocol</span>
+        <span class="pf-tag t-purple">CLAUDE.md</span>
+        <span class="pf-tag t-green">Azure Fundamentals AZ-900</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- EXPERIENCE -->
+  <div class="pf-wrap" id="experience">
+    <div class="pf-inner">
+      <div class="pf-sec-eye">Career</div>
+      <h2 class="pf-sec-title">Work Experience</h2>
+      <div class="pf-rule"></div>
+      <div class="pf-timeline">
+
+        <div class="pf-tl-item" data-aos="fade-up">
+          <div class="pf-tl-head">
+            <span class="pf-tl-company">Cognizant Technology</span>
+            <span class="pf-tl-period">Jun 2024 – Jun 2025</span>
           </div>
+          <div class="pf-tl-role">QA Automation Test Engineer / Lead &nbsp;·&nbsp; Bangalore</div>
+          <div class="pf-tl-project">EMEA – Computer Share</div>
+          <ul class="pf-tl-list">
+            <li>Enhanced automation framework using <strong>C#, Selenium, Playwright and RestSharp</strong> for API and UI testing with <strong>parallel execution</strong>.</li>
+            <li>Streamlined daily test execution with <strong>GitHub Actions and Azure Pipelines</strong> CI/CD integration.</li>
+            <li>Reduced manual effort and execution time by <strong>~50%</strong> through parallel execution strategy and E2E scenarios.</li>
+            <li>Designed an <strong>AI-assisted test pipeline</strong> using <strong>GitHub Copilot + Claude Code + MCP Protocol</strong>, automating story fetch → test generation → StyleCop validation → review → PR creation. <span class="pf-ai-badge">🤖 AI</span></li>
+          </ul>
+        </div>
+
+        <div class="pf-tl-item" data-aos="fade-up">
+          <div class="pf-tl-head">
+            <span class="pf-tl-company">Cognizant Technology</span>
+            <span class="pf-tl-period">Oct 2023 – May 2024</span>
+          </div>
+          <div class="pf-tl-role">QA Automation Test Engineer / Lead &nbsp;·&nbsp; Bangalore</div>
+          <div class="pf-tl-project">Microsoft OTT Platform Migration</div>
+          <ul class="pf-tl-list">
+            <li>Developed scalable <strong>microservices test automation framework</strong> on Azure using <strong>Java &amp; Rest Assured</strong>.</li>
+            <li>Led a team of 4 to build the framework and execute migration testing.</li>
+            <li>Implemented <strong>CI/CD with GitHub Actions</strong> for daily test execution.</li>
+            <li>Integrated <strong>Jira Xray API</strong> for automated test case synchronization.</li>
+            <li>Created <strong>dynamic TestNG XML generation</strong> and categorized Extent reports for test insights.</li>
+            <li>Secured sensitive data using <strong>Git Secret</strong>.</li>
+          </ul>
+        </div>
+
+        <div class="pf-tl-item" data-aos="fade-up">
+          <div class="pf-tl-head">
+            <span class="pf-tl-company">Capgemini</span>
+            <span class="pf-tl-period">Jul 2021 – Oct 2023</span>
+          </div>
+          <div class="pf-tl-role">QA Automation Consultant &nbsp;·&nbsp; Mumbai</div>
+          <div class="pf-tl-project">BUPA UK Health Insurance (MS D365)</div>
+          <ul class="pf-tl-list">
+            <li>Designed and developed a <strong>BDD automation framework</strong> in <strong>C# / SpecFlow</strong>.</li>
+            <li>Implemented <strong>CI/CD pipelines</strong> in Azure with YAML for continuous integration and automated deployments.</li>
+            <li>Published <strong>NuGet packages</strong> to Azure Artifactory for code reusability across teams.</li>
+            <li>Developed <strong>real-time OTP authentication</strong> solution using third-party APIs.</li>
+            <li>Designed a <strong>Docker container-based solution</strong> for cross-environment test execution.</li>
+            <li>Developed common and extension methods for reusable, maintainable framework code.</li>
+          </ul>
+        </div>
+
+        <div class="pf-tl-item" data-aos="fade-up">
+          <div class="pf-tl-head">
+            <span class="pf-tl-company">Harjai Computers &nbsp;·&nbsp; Experis IT</span>
+            <span class="pf-tl-period">Feb 2019 – Jun 2021</span>
+          </div>
+          <div class="pf-tl-role">Automation Test Engineer &nbsp;·&nbsp; Mumbai</div>
+          <div class="pf-tl-project">Aditya Birla SunLife Insurance</div>
+          <ul class="pf-tl-list">
+            <li>Built and maintained <strong>Selenium automation frameworks</strong> using <strong>Java, TestNG, Maven</strong>.</li>
+            <li>Integrated with <strong>MS SQL Server and HSQL</strong> for dynamic test data retrieval at runtime.</li>
+            <li>Developed <strong>data-driven testing</strong> with <strong>Apache POI</strong> for Excel-based test input.</li>
+            <li>Framework adoption by actuaries teams resulted in <strong>60% reduction in manual effort</strong>.</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- PROJECTS -->
+  <div class="pf-wrap pf-wrap-alt" id="projects">
+    <div class="pf-inner">
+      <div class="pf-sec-eye">Portfolio Projects</div>
+      <h2 class="pf-sec-title">Projects</h2>
+      <div class="pf-rule"></div>
+      <div class="pf-proj-grid">
+        <a href="https://github.com/anurag-z/Specflow_Selenium_Parallel" target="_blank" class="pf-proj-card" data-aos="fade-up">
+          <div class="pf-proj-name">BDD Framework: Selenium C# SpecFlow</div>
+          <div class="pf-proj-desc">Parallel BDD execution with C# SpecFlow and Selenium WebDriver.</div>
+          <div class="pf-proj-link">View on GitHub →</div>
+        </a>
+        <a href="https://github.com/anurag-z/Unified_Automation" target="_blank" class="pf-proj-card" data-aos="fade-up" data-aos-delay="60">
+          <div class="pf-proj-name">Java Unified Automation</div>
+          <div class="pf-proj-desc">API &amp; UI parallel execution framework in Java — single unified entry point.</div>
+          <div class="pf-proj-link">View on GitHub →</div>
+        </a>
+        <a href="https://github.com/anurag-z/API-Automation-Java" target="_blank" class="pf-proj-card" data-aos="fade-up" data-aos-delay="120">
+          <div class="pf-proj-name">REST API Automation + GitHub Actions CI</div>
+          <div class="pf-proj-desc">Java RestAssured with integrated CI pipeline via GitHub Actions.</div>
+          <div class="pf-proj-link">View on GitHub →</div>
+        </a>
+        <a href="https://github.com/anurag-z/AzurePipeline" target="_blank" class="pf-proj-card" data-aos="fade-up" data-aos-delay="180">
+          <div class="pf-proj-name">Automated CI/CD with Azure Pipelines</div>
+          <div class="pf-proj-desc">Test automation integrated into Azure DevOps with YAML-based pipelines.</div>
+          <div class="pf-proj-link">View on GitHub →</div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDUCATION & CERTS -->
+  <div class="pf-wrap" id="education">
+    <div class="pf-inner">
+      <div class="pf-sec-eye">Credentials</div>
+      <h2 class="pf-sec-title">Education &amp; Certification</h2>
+      <div class="pf-rule"></div>
+      <div class="pf-edu-grid">
+        <div class="pf-edu-card" data-aos="fade-up">
+          <div class="pf-edu-year">2016 – 2019</div>
+          <div class="pf-edu-deg">MCA — Master of Computer Application</div>
+          <div class="pf-edu-org">Mumbai University</div>
+        </div>
+        <div class="pf-edu-card" data-aos="fade-up" data-aos-delay="100">
+          <div class="pf-edu-year">2023</div>
+          <div class="pf-edu-deg">Microsoft Azure Fundamentals</div>
+          <div class="pf-edu-org">AZ-900 &nbsp;·&nbsp; Microsoft</div>
         </div>
       </div>
     </div>
   </div>
-</div>
-<div class="section" id="skill">
-  <div class="container">
-    <div class="h4 text-center mb-4 title">Professional Skills</div>
-    <div class="card" data-aos="fade-up" data-aos-anchor-placement="top-bottom">
 
-      <div class="card-body">
-       
-
-       <div class="row">
-
-
-
-
-
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">Selenium</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width:80%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
+  <!-- ABOUT -->
+  <div class="pf-wrap pf-wrap-alt" id="about">
+    <div class="pf-inner">
+      <div class="pf-sec-eye">Contact</div>
+      <h2 class="pf-sec-title">About</h2>
+      <div class="pf-rule"></div>
+      <div class="pf-about-grid">
+        <div>
+          <div class="pf-about-text">
+            <p>QA Automation Engineer with 6+ years building test frameworks across Java and C# stacks. I specialise in Playwright-based UI automation, API testing, and CI/CD integration — currently exploring how far AI-assisted tooling can push what a single engineer ships in a sprint.</p>
+            <p>I work best in teams that take quality seriously and want to push what automation can actually do — not just run tests, but shorten the feedback loop between a story and a merged PR. The AI pipeline on this page is my current answer to that question.</p>
+            <p style="font-size:12px;color:#3d4a5c;">Mumbai-based. Open to remote and hybrid roles.</p>
           </div>
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">Java</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 75%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
+          <div style="margin-top:22px;display:flex;gap:10px;flex-wrap:wrap">
+            <a href="resume/Anurag_Automaiton_AZ.pdf" class="pf-btn pf-btn-fill">Download CV</a>
+            <a href="mailto:Anuragbansod100@gmail.com" class="pf-btn pf-btn-ghost">Send Email</a>
           </div>
         </div>
- <div class="row">
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">C#</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width:80%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">Azure Devops (Continous Integration)</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 75%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-
-        
-        <div class="row">
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">Test Automation</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 100%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">TestNG</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 85%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">API Automatin</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 66%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">Test Data Driven</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 76%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">Specflow BDD</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 60%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="progress-container progress-primary"><span class="progress-badge">Agile</span>
-              <div class="progress">
-                <div class="progress-bar progress-bar-primary" data-aos="progress-full" data-aos-offset="10" data-aos-duration="2000" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" style="width: 70%;"></div><span class="progress-value"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-     <div class="card-body cc-experience-header">
-      <section class="tech-stack">
-            <p></p>
-           <!-- <div class="h5">TECHNICAL STACKS USED:</div>
-            <p>
-<ul>
-<li><b>Testing tools:</b> Selenium WebDriver, MSTest,TestNG, Specflow, Rest-assured, Rest-Sharp, Allure Reports, Extent Reports</li>
-<li><b>Defect Tracking Tools:</b> JIRA, Azure Devops.</li>
-<li><b>Build Tools:</b> Maven, .NetCore 3.1.</li>
-<li><b>Languages:</b> Java, SQL, C#.</li>
-<li><b>CI/CD Tools:</b> Git Actions, Docker, Azure Devops, TeamCity.</li>
-<li><b>Databases:</b> Microsoft SQL Server & HSQL, Redis</li>
-<li><b>Version Control:</b> GIT, TFS (Teams Foundation Server).</li>
-<li><b>Others Tools/lib:</b> Postman,Talend API, Visual Studio, Eclipse</li>
-</ul>
-</p>-->
-
-  <h3>Technical Stack</h3>
-  <ul>
-    <li><strong>Testing Tools:</strong> Selenium WebDriver, Playwright, TestNG, SpecFlow, Rest-Assured, Rest-Sharp, NUnit</li>
-    <li><strong>Defect Tracking:</strong> JIRA, Azure DevOps</li>
-    <li><strong>Build Tools:</strong> Maven, .NET Core 3.1</li>
-    <li><strong>Languages:</strong> Java, SQL, C#</li>
-    <li><strong>CI/CD Tools:</strong> Git Actions, Docker, Azure DevOps, TeamCity</li>
-    <li><strong>Databases:</strong> Microsoft SQL Server, HSQL, Redis</li>
-    <li><strong>Version Control:</strong> GIT, TFS (Team Foundation Server)</li>
-    <li><strong>Other Tools/libs:</strong> Postman, Allure and Extent Reports, Visual Studio, Eclipse</li>
-  </ul>
-</section>
-          </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-</div>
-
-<div class="section" id="projects">
-  <div class="container cc-experience">
-    <div class="h4 text-center mb-4 title">Projects</div>
-
-
-
-<div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-experience-header">
-            <p>2019-2023</p>
-            <div class="h5">🚀 All Projects</div>
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-            <div class="h5">Projects I've Contributed to Throughout My Career Journey</div>
-           <p>
-           <ul>
-            <li><b>BDD Framework: Selenium with C# SpecFlow with Parallel Execution  </b><a href="https://github.com/anurag-z/Specflow_Selenium_Parallel" target="_blank">Visit Selenium with C#</a>
-
-              <li><b>Java Unified Automation: API & UI with Parallel Execution </b> <a href="https://github.com/anurag-z/Unified_Automation" target="_blank">Visit Unified Automation Framework </a>
-
-              <li><b>Efficient Rest API Automation: Java RestAssured + GitActions CI:</b> <a href="https://github.com/anurag-z/API-Automation-Java" target="_blank">Access JAVA API Automation Repo</a>
-<!-- <li><b>Dockerized Selenium: Executing C# Testcases:</b> <a href="https://github.com/anurag-z/Docker_Selenium_CSharp" target="_blank">Access Docker Repository</a>-->
-<li><b>Automated CI/CD Testing with Azure Pipelines:</b>  <a href="https://github.com/anurag-z/AzurePipeline" target="_blank">Access Azure Project Repository</a>
-<!--<li><b>Test-Data Driven Selenium with Java </b> <a href="https://github.com/anurag-z/Java_Selenium" target="_blank">Visit Selenium with JAVA (TDD Approach) Repository</a>
--->
-</ul>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-
-    
-
-<div class="section" id="experience">
-  <div class="container cc-experience">
-    <div class="h4 text-center mb-4 title">Work Experience</div>
-    <div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-experience-header">
-            <p>June 2024 - June 2025</p>
-            <div class="h5">Cognizant Technology PVT LTD</div>
-            
-            
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-            <div class="h5"><b>EMEA-Computer Share</b> </div>
-           
-            <div class="h4">QA Automation Test Engineer/Lead </div>
-            <p class="category">Bangalore, India</p>
-            <p>
-              <li>Enhanced an automation framework using<strong>C#, Selenium,Playwright and RestSharp</strong> for API and UI  testing, incorporating support for <strong>Parallel execution.</strong></li>
-              <li>Streamlined daily test executions and integrations by implementing Continuous Integration with<strong>GitHub Actions and Azure Pipelines.</strong></li>
-              <li>Reduced manual effort and execution time by<strong>~50%</strong> through the implementation of <strong>Parallel execution strategy and E2E scenarios.</strong></li>
-              
-  
-  
-  
-            
-</ul>
-
-</p>
-          </div>
-        </div>
-      </div>
-    </div> 
-
-    <!-- <div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-experience-header">
-            <p>October 2023 - Present</p>
-            <div class="h5">Cognizant Technology PVT LTD</div>
-            
-            
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-            <div class="h5"><b>Fedex</b> </div>
-           
-            <div class="h4">QA Automation Test Engineer/Lead </div>
-            <p class="category">Bangalore, India</p>
-            <p>
-              <li>Created a utility for executing automation scripts<strong>in multiple languages</strong> improving <strong>global test coverage and versatility.</strong></li>
-              <li><strong>Leveraged AI assistance from GitHub Copilot to optimize and accelerate code</strong> within a BDD framework <strong>improving development efficiency and performance</strong></li>
-              <li><strong>Implemented CI/CD with GitHub Actions</strong> for daily test execution.</li>
-              <li><strong>Reduced manual effort by ~60%</strong> through automated test case execution across multiple localization languages.</li>
-              <li>Designed <strong>Azure pipeline</strong>to run scripts in multiple languages using <strong>variables and Maven commands.</strong></li>
-         
-  
-  
-  
-            
-</ul>
-
-</p>
-          </div>
-        </div>
-      </div>
-    </div>  -->
-
-    <div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-experience-header">
-            <p>October 2023 - May 2024</p>
-            <div class="h5">Cognizant Technology PVT LTD</div>
-            
-            
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-           
-             <div class="h5"><b>Microsoft OTT Platform Migration</b> </div>
-           
-            <div class="h4">QA Automation Test Engineer/Lead </div>
-            <p class="category">Bangalore, India</p>
-            <p>
-              <li><strong>Developed scalable microservices test automation framework</strong> on Azure using Java & Rest Assured.</li>
-              <li><strong>Led a team of 4</strong> to build the framework and execute migration testing.</li>
-              <li><strong>Implemented CI/CD with GitHub Actions</strong> for daily test execution.</li>
-              <li>Integrated <strong>Jira Xray API</strong> for automated test case synchronization.</li>
-              <li>Created <strong>dynamic TestNG XML generation</strong> and categorized Extent reports for insights.</li>
-              <li>Secured sensitive data using <strong>Git Secret</strong>.</li>
-  
-  
-  
-            
-</ul>
-
-</p>
-
-
-          </div>
-        </div>
-      </div>
-    </div> 
-
-   
-
-
-
-
-
-    <div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-experience-header">
-            <p>July 2021 - October 2023</p>
-            <div class="h5">Capgemini PVT LTD</div>
-            
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-             <div class="h5"><b>BUPA UK Health Insurance (MS D365)</b> </div>
-           
-            <div class="h4">QA Automation Test Engineer/Consultant </div>
-            <p class="category">Mumbai, India</p>
-            <p>
-              <ul>
-   <li><strong>Designed and developed a BDD automation framework</strong> in <strong>C#</strong> using <strong>SpecFlow</strong> to improve testing efficiency.</li>
-   <li><strong>Implemented CI/CD pipelines</strong> in <strong>Azure</strong> with YAML for continuous integration, automated testing, and deployments.</li>
-   <li><strong>Published NuGet packages</strong> to <strong>Azure Artifactory</strong> for improved code reusability across multiple teams.</li>
-   <li>Developed a <strong>real-time OTP authentication</strong> solution using third-party <strong>APIs</strong> for enhanced security.</li>
-   <li><strong>Integrated reporting tools</strong> like <strong>Extent</strong> and <strong>Allure</strong> for detailed test result generation and reporting.</li>
-   <li>Designed a <strong>Docker container-based solution</strong> for faster test execution across different environments.</li>
-   <li>Developed <strong>common and extension methods</strong> within the framework for reusable code and enhanced maintainability.</li>
-   <li><strong>Utilized Git and Azure TFS</strong> for version control, source code management, and team collaboration.</li>
- 
-  
-  
-  
-            
-</ul>
-
-</p>
-          </div>
-        </div>
-      </div>
-    </div> 
-
-    <div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-experience-header">
-            <p>Aug 2020 - June 2021</p>
-             <div class="h5">Harjai Computers PVT Ltd.</div>
-            <p>Feb 2019 - July 2020</p>
-            <div class="h5">Experis IT PVT Ltd.</div>
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-             <div class="h5"><b>Aditya Birla SunLife Insurance </b> </div>
-            <div class="h4">Automation Test Engineer</div>
-            <p class="category">Mumbai,India</p>
-            <p>
-<ul>
-<li>Built and maintained <b>Selenium automation frameworks using Java, TestNG, Maven for UI and functional testing</b>.</li>
-<li>Integrated with <b>MS SQL Server</b> and <b>HSQL databases for dynamic test data retrieval at runtime</b>.</li>
-<li>Developed <b>Data-Driven Testing </b> capabilities with <b>Apache POI </b> for Excel, automating data input and improving test coverage.</li>
-  
-  <li><b>Actuaries </b>leveraged our automation framework to generate many quotes, resulting in <b>60% reduction in
-Manual efforts. </b>
-</li>
-
-</ul>
-</p>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- <div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-experience-header">
-            <p>January 2014 - May 2016</p>
-            <div class="h5">Inventra Technologies Pvt Ltd</div>
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-            <div class="h5">Senior QA</div>
-              <p class="category">Noida Area, India</p>
-            <p>Monitoring the software engineering processes and methods used to ensure quality.
-Is to ensure that the ongoing processes and software ensure high quality of
-the end product being delivered to the customers.
-<ul>
-<li>Also ensuring that the software and process pass the durability and
-relevance test.</li>
-<li>Giving recommendations on how quality can be improved further.</li></ul></p>
-          </div>
+        <div>
+          <div class="pf-info-row"><span class="pf-info-key">Email</span><span class="pf-info-val">Anuragbansod100@gmail.com</span></div>
+          <div class="pf-info-row"><span class="pf-info-key">Location</span><span class="pf-info-val">Mumbai, Maharashtra</span></div>
+          <div class="pf-info-row"><span class="pf-info-key">Language</span><span class="pf-info-val">English · Hindi · Marathi</span></div>
+          <div class="pf-info-row"><span class="pf-info-key">LinkedIn</span><span class="pf-info-val"><a href="https://www.linkedin.com/in/anurag-bansod-100Z/" target="_blank">anurag-bansod-100Z</a></span></div>
+          <div class="pf-info-row"><span class="pf-info-key">GitHub</span><span class="pf-info-val"><a href="https://github.com/anurag-z" target="_blank">github.com/anurag-z</a></span></div>
         </div>
       </div>
     </div>
   </div>
-</div> -->
 
-
-
-
-
-
-  
-
-
-
-      </div></div>
-
-
-<div class="section">
-  <div class="container cc-education">
-    <div class="h4 text-center mb-4 title">Education</div>
-    <div class="card">
-      <div class="row">
-        <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body cc-education-header">
-            <p>2016 - 2019</p>
-            <div class="h5">MCA</div>
-          </div>
-        </div>
-        <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="500">
-          <div class="card-body">
-            <div class="h5">MCA</div>
-            <p class="category">MUMBAI UNIVERSITY</p>
-            <p>Masters in Computer Application with 3 years of Academic.</p>
-          </div>
-        </div>
-      </div>
+  <!-- FOOTER -->
+  <footer class="pf-footer">
+    <div class="pf-footer-icons">
+      <a href="https://www.linkedin.com/in/anurag-bansod-100Z/" target="_blank" class="pf-icon-btn"><i class="fa fa-linkedin fa-lg"></i></a>
+      <a href="https://github.com/anurag-z?tab=repositories" target="_blank" class="pf-icon-btn"><i class="fa fa-github fa-lg"></i></a>
     </div>
+    <div class="pf-footer-copy">Anurag Bansod &nbsp;·&nbsp; QA Automation Engineer &nbsp;·&nbsp; &copy; 2025</div>
+  </footer>
 
-    <div class="section">
-      <div class="container cc-education">
-        <div class="h4 text-center mb-4 title">Certification</div>
-        <div class="card">
-          <div class="row">
-            <div class="col-md-3 bg-primary" data-aos="fade-right" data-aos-offset="50" data-aos-duration="50">
-              <div class="card-body cc-education-header">
-                <p>2023</p>
-                <div class="h5">Cloud</div>
-              </div>
-            </div>
-            <div class="col-md-9" data-aos="fade-left" data-aos-offset="50" data-aos-duration="50">
-              <div class="card-body">
-                <div class="h5">Azure Fundamentals AZ-900</div>
-              </div>
-            </div>
-          </div>
-        </div>
-    
-        <div class="section" id="about">
-          <div class="container">
-            <div class="card" data-aos="fade-up" data-aos-offset="10">
-              <div class="row">
-                <div class="col-lg-6 col-md-12">
-                  <div class="card-body">
-                    <div class="h4 mt-0 title">About</div>
-                    <p>Hello all ! I Anurag Bansod. QA Automation Engineer</p>
-                    <p>To be associated with a Progressive and Innovative Organization that gives scope to apply my knowledge and skills, and to be a part of a team that dynamically works towards the growth of the Organization
-        Specialties: Flexibility to adopt new technologies and zeal to learn new technologies.
-        Positive attitude and enthusiastic in teamwork.  <a href="https://github.com/anurag-Z/" target="_blank">Learn More</a></p>
-                  </div>
-                </div>
-                <div class="col-lg-6 col-md-12">
-                  <div class="card-body">
-                    <div class="h4 mt-0 title">Basic Information</div>
-                    <div class="row mt-3">
-                      <div class="col-sm-4"><strong class="text-uppercase">Email:</strong></div>
-                      <div class="col-sm-8">Anuragbansod100@gmail.com</div>
-                    </div>
-                    <div class="row mt-3">
-                      <div class="col-sm-4"><strong class="text-uppercase">Phone:</strong></div>
-                      <div class="col-sm-8">+91-865538XXXXX</div>
-                    </div>
-                    <div class="row mt-3">
-                      <div class="col-sm-4"><strong class="text-uppercase">Address:</strong></div>
-                      <div class="col-sm-8">Mumbai,Maharashta- India</div>
-                    </div>
-                    <div class="row mt-3">
-                      <div class="col-sm-4"><strong class="text-uppercase">Language:</strong></div>
-                      <div class="col-sm-8">English, Hindi,Marathi</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-    
-
-              
-
-    </div>
-    <footer class="footer">
-      <div class="container text-center">
-
- <a class="cc-facebook btn btn-link" href="https://www.linkedin.com/in/anurag-bansod-100Z/" rel="tooltip" title="Follow me on Linkedin" target="_blank"><i class="fa fa-linkedin fa-3x"></i></a>
-            
-            <a class="btn btn-link" href="https://github.com/anurag-z?tab=repositories" rel="tooltip" title="Follow me on Github" target="_blank"><i class="fa fa-github fa-3x"></i></a>
-
-            <!-- <a class="btn btn-link" href="https://github.com/abhishekdh" rel="tooltip" title="Follow me on Medium" target="_blank"><i class="fa fa-medium fa-3x"></i></a>
-
-            <a class="btn btn-link" href="https://stackoverflow.com/users/5372079/abhishek-dhoundiyal" rel="tooltip" title="Follow me on Stackoverflow" target="_blank"><i class="fa fa-stack-overflow fa-3x"></i></a> -->
-
-
-</div>
-      <div class="h4 title text-center">Anurag Bansod</div>
-      <div class="text-center text-muted">
-        <p>&copy; Anurag Bansod. All rights reserved.</p>
-      </div>
-    </footer>
-    <script src="js/core/jquery.3.2.1.min.js?ver=1.1.0"></script>
-    <script src="js/core/popper.min.js?ver=1.1.0"></script>
-    <script src="js/core/bootstrap.min.js?ver=1.1.0"></script>
-    <script src="js/now-ui-kit.js?ver=1.1.0"></script>
-    <script src="js/aos.js?ver=1.1.0"></script>
-    <script src="scripts/main.js?ver=1.1.0"></script>
-    <!-- <script src="https://platform.linkedin.com/badges/js/profile.js" async defer type="text/javascript"></script> -->
-  </body>
+  <script src="js/core/jquery.3.2.1.min.js?ver=1.1.0"></script>
+  <script src="js/core/popper.min.js?ver=1.1.0"></script>
+  <script src="js/core/bootstrap.min.js?ver=1.1.0"></script>
+  <script src="js/now-ui-kit.js?ver=1.1.0"></script>
+  <script src="js/aos.js?ver=1.1.0"></script>
+  <script src="scripts/main.js?ver=1.1.0"></script>
+  <script>AOS.init({ duration: 600, once: true, offset: 40 });</script>
+</body>
 </html>
- 	

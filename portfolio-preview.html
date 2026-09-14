@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portfolio Preview — Anurag Bansod</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0e1a;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex; flex-direction: column;
+      height: 100vh; overflow: hidden;
+      color: #a0aec0;
+    }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      background: #111827;
+      border-bottom: 1px solid #1a2235;
+      padding: 8px 16px;
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      flex-shrink: 0; min-height: 48px;
+    }
+    .t-group { display: flex; align-items: center; gap: 5px; }
+    .t-label {
+      font-size: 10px; color: #677387;
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-right: 2px; white-space: nowrap;
+    }
+    .divider { width: 1px; height: 18px; background: #1a2235; margin: 0 4px; }
+
+    .btn {
+      padding: 4px 11px; border-radius: 4px; font-size: 11px; font-weight: 600;
+      cursor: pointer; border: 1px solid #1a2235;
+      background: transparent; color: #8892a4;
+      letter-spacing: 0.4px; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn:hover { border-color: #4f8ef7; color: #4f8ef7; }
+    .btn.active { background: #4f8ef7; border-color: #4f8ef7; color: #fff; }
+    .btn.jump { border-color: rgba(139,92,246,0.25); color: #8b5cf6; }
+    .btn.jump:hover { background: rgba(139,92,246,0.1); border-color: #8b5cf6; }
+    .btn.review { border-color: rgba(16,185,129,0.25); color: #10b981; }
+    .btn.review:hover { background: rgba(16,185,129,0.08); border-color: #10b981; }
+    .btn.review.active { background: #10b981; border-color: #10b981; color: #fff; }
+
+    .size-badge {
+      font-family: 'Courier New', monospace;
+      font-size: 10px; color: #4f8ef7;
+      background: rgba(79,142,247,0.08);
+      border: 1px solid rgba(79,142,247,0.2);
+      padding: 3px 8px; border-radius: 4px; white-space: nowrap;
+    }
+
+    /* ── PREVIEW ── */
+    .preview-wrap {
+      flex: 1; display: flex; align-items: flex-start; justify-content: center;
+      overflow: hidden; background: #060a14;
+      padding: 12px; position: relative;
+    }
+
+    .device-frame {
+      height: 100%; transition: width 0.3s ease, max-width 0.3s ease;
+      position: relative; display: flex; flex-direction: column;
+    }
+
+    .device-label {
+      font-size: 10px; color: #677387; text-align: center;
+      margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase;
+    }
+
+    .iframe-shell {
+      flex: 1; border-radius: 6px; overflow: hidden;
+      box-shadow: 0 0 0 1px #1a2235, 0 20px 60px rgba(0,0,0,0.6);
+    }
+
+    .iframe-shell iframe {
+      width: 100%; height: 100%; border: none; display: block;
+      background: #fff;
+    }
+
+    /* ── BOTTOM ── */
+    .bottom-bar {
+      background: #111827; border-top: 1px solid #1a2235;
+      padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .prompt-out {
+      flex: 1;
+      font-family: 'Courier New', monospace; font-size: 12px; color: #a0aec0;
+      background: #0a0e1a; border: 1px solid #1a2235; border-radius: 4px;
+      padding: 8px 12px; line-height: 1.5;
+      white-space: pre-wrap; word-break: break-word;
+      max-height: 54px; overflow-y: auto;
+    }
+    .prompt-out.empty { color: #3d4a5c; font-style: italic; }
+
+    .copy-btn {
+      padding: 7px 16px; border-radius: 4px; font-size: 11px; font-weight: 700;
+      cursor: pointer; border: 1px solid #4f8ef7;
+      background: transparent; color: #4f8ef7;
+      letter-spacing: 0.4px; transition: all 0.15s; white-space: nowrap;
+    }
+    .copy-btn:hover { background: #4f8ef7; color: #fff; }
+    .copy-btn.copied { background: #10b981; border-color: #10b981; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+
+    <!-- Viewport -->
+    <div class="t-group">
+      <span class="t-label">Viewport</span>
+      <button class="btn active" id="btn-desktop" onclick="setViewport('desktop')">Desktop</button>
+      <button class="btn" id="btn-tablet" onclick="setViewport('tablet')">Tablet</button>
+      <button class="btn" id="btn-mobile" onclick="setViewport('mobile')">Mobile</button>
+      <span class="size-badge" id="size-badge">1200px+</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Section jump -->
+    <div class="t-group">
+      <span class="t-label">Jump to</span>
+      <button class="btn jump" onclick="jumpTo('top')">Hero</button>
+      <button class="btn jump" onclick="jumpTo('pipeline')">AI Pipeline</button>
+      <button class="btn jump" onclick="jumpTo('skill')">Skills</button>
+      <button class="btn jump" onclick="jumpTo('experience')">Experience</button>
+      <button class="btn jump" onclick="jumpTo('projects')">Projects</button>
+      <button class="btn jump" onclick="jumpTo('about')">About</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Review prompts -->
+    <div class="t-group">
+      <span class="t-label">Review</span>
+      <button class="btn review" id="btn-r1" onclick="setReview('impression')">First Impression</button>
+      <button class="btn review" id="btn-r2" onclick="setReview('mobile')">Mobile</button>
+      <button class="btn review" id="btn-r3" onclick="setReview('content')">Content</button>
+      <button class="btn review" id="btn-r4" onclick="setReview('cta')">CTA</button>
+    </div>
+
+  </div>
+
+  <!-- PREVIEW -->
+  <div class="preview-wrap">
+    <div class="device-frame" id="device-frame">
+      <div class="device-label" id="device-label">Desktop — 1200px+</div>
+      <div class="iframe-shell">
+        <iframe id="pf-frame" src="index.html" title="Portfolio"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div class="bottom-bar">
+    <div class="prompt-out empty" id="prompt-out">Pick a Review type above to get a Claude prompt for that feedback area...</div>
+    <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">Copy Prompt</button>
+  </div>
+
+<script>
+  const VIEWPORTS = {
+    desktop: { width: '100%',  label: 'Desktop — 1200px+' },
+    tablet:  { width: '768px', label: 'Tablet — 768px' },
+    mobile:  { width: '375px', label: 'Mobile — 375px' },
+  };
+
+  const REVIEWS = {
+    impression: `Review this QA Automation Engineer portfolio as a hiring manager seeing it for the first time — you have 10 seconds before you decide whether to read on. What single thing jumps out as the strongest signal of seniority? What single thing would make you hesitate? Suggest one change to the hero section that would make those 10 seconds land harder.`,
+
+    mobile: `Review the mobile layout of this portfolio at 375px viewport width. Check: (1) Does the hero photo + name + stats read cleanly without horizontal scroll? (2) Does the AI Pipeline flow diagram wrap gracefully or break? (3) Are the skill bars legible? (4) Is the timeline readable on small screens? List specific layout or readability issues to fix, with the CSS fix for each.`,
+
+    content: `Review the written content of this QA Automation Engineer portfolio for credibility and impact. Flag: (1) any bullet points that describe tasks rather than achievements, (2) claims that are generic and could appear on any engineer's CV, (3) places where the AI pipeline work is undersold or not connected back to business impact. Rewrite the two weakest bullets as strong achievement statements.`,
+
+    cta: `Review the calls-to-action on this portfolio page: the "Get in Touch" button, "Download CV" button, and contact section. Are they placed where a reviewer who is convinced would look for them? Is the friction to reach out too high? Suggest the single change to the CTA flow that would most increase the chance a hiring manager sends an email.`,
+  };
+
+  const state = { viewport: 'desktop', review: null };
+
+  function setViewport(v) {
+    state.viewport = v;
+    const frame = document.getElementById('device-frame');
+    const label = document.getElementById('device-label');
+    const badge = document.getElementById('size-badge');
+    const vp = VIEWPORTS[v];
+
+    frame.style.width = vp.width;
+    frame.style.maxWidth = vp.width;
+    label.textContent = vp.label;
+    badge.textContent = vp.width === '100%' ? '1200px+' : vp.width;
+
+    ['desktop','tablet','mobile'].forEach(id => {
+      document.getElementById('btn-' + id).classList.toggle('active', id === v);
+    });
+  }
+
+  function jumpTo(section) {
+    const frame = document.getElementById('pf-frame');
+    try {
+      const el = frame.contentDocument.getElementById(section);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        frame.contentWindow.location.hash = '#' + section;
+      }
+    } catch(e) {
+      frame.src = 'index.html' + (section !== 'top' ? '#' + section : '');
+    }
+  }
+
+  function setReview(type) {
+    state.review = type;
+    const out = document.getElementById('prompt-out');
+    out.textContent = REVIEWS[type];
+    out.classList.remove('empty');
+
+    ['r1','r2','r3','r4'].forEach(id => {
+      document.getElementById('btn-' + id).classList.remove('active');
+    });
+    const map = { impression:'r1', mobile:'r2', content:'r3', cta:'r4' };
+    document.getElementById('btn-' + map[type]).classList.add('active');
+  }
+
+  function copyPrompt() {
+    const text = document.getElementById('prompt-out').textContent;
+    if (!state.review) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy Prompt';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+</script>
+</body>
+</html>
